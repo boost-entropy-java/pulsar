@@ -791,16 +791,18 @@ public abstract class NamespacesBase extends AdminResource {
         });
     }
 
-    protected void internalSetNamespaceMessageTTL(Integer messageTTL) {
-        validateNamespacePolicyOperation(namespaceName, PolicyName.TTL, PolicyOperation.WRITE);
-        validatePoliciesReadOnlyAccess();
-        if (messageTTL != null && messageTTL < 0) {
-            throw new RestException(Status.PRECONDITION_FAILED, "Invalid value for message TTL");
-        }
-        updatePolicies(namespaceName, policies -> {
-            policies.message_ttl_in_seconds = messageTTL;
-            return policies;
-        });
+    protected CompletableFuture<Void> internalSetNamespaceMessageTTLAsync(Integer messageTTL) {
+        return validateNamespacePolicyOperationAsync(namespaceName, PolicyName.TTL, PolicyOperation.WRITE)
+                .thenCompose(__ -> validatePoliciesReadOnlyAccessAsync())
+                .thenAccept(__ -> {
+                    if (messageTTL != null && messageTTL < 0) {
+                        throw new RestException(Status.PRECONDITION_FAILED,
+                                "Invalid value for message TTL, message TTL must >= 0");
+                    }
+                }).thenCompose(__ -> updatePoliciesAsync(namespaceName, policies -> {
+                    policies.message_ttl_in_seconds = messageTTL;
+                    return policies;
+                }));
     }
 
     protected void internalSetSubscriptionExpirationTime(Integer expirationTime) {
@@ -906,13 +908,13 @@ public abstract class NamespacesBase extends AdminResource {
         internalSetAutoSubscriptionCreation(asyncResponse, null);
     }
 
-    protected void internalModifyDeduplication(Boolean enableDeduplication) {
-        validateNamespacePolicyOperation(namespaceName, PolicyName.DEDUPLICATION, PolicyOperation.WRITE);
-        validatePoliciesReadOnlyAccess();
-        updatePolicies(namespaceName, policies -> {
-            policies.deduplicationEnabled = enableDeduplication;
-            return policies;
-        });
+    protected CompletableFuture<Void> internalModifyDeduplicationAsync(Boolean enableDeduplication) {
+        return validateNamespacePolicyOperationAsync(namespaceName, PolicyName.DEDUPLICATION, PolicyOperation.WRITE)
+                .thenCompose(__ -> validatePoliciesReadOnlyAccessAsync())
+                .thenCompose(__ -> updatePoliciesAsync(namespaceName, policies -> {
+                    policies.deduplicationEnabled = enableDeduplication;
+                    return policies;
+                }));
     }
 
     @SuppressWarnings("deprecation")
@@ -2146,9 +2148,10 @@ public abstract class NamespacesBase extends AdminResource {
         }
     }
 
-    protected Boolean internalGetDeduplication() {
-        validateNamespacePolicyOperation(namespaceName, PolicyName.DEDUPLICATION, PolicyOperation.READ);
-        return getNamespacePolicies(namespaceName).deduplicationEnabled;
+    protected CompletableFuture<Boolean> internalGetDeduplicationAsync() {
+        return validateNamespacePolicyOperationAsync(namespaceName, PolicyName.DEDUPLICATION, PolicyOperation.READ)
+                .thenCompose(__ -> getNamespacePoliciesAsync(namespaceName))
+                .thenApply(policies -> policies.deduplicationEnabled);
     }
 
     protected Integer internalGetMaxConsumersPerTopic() {
