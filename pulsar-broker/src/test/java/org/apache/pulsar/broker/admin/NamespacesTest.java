@@ -644,10 +644,8 @@ public class NamespacesTest extends MockedPulsarServiceBaseTest {
                 .numBundles(boundaries.size() - 1)
                 .build();
         createBundledTestNamespaces(this.testTenant, this.testLocalCluster, "test-bundled-namespace-1", bundle);
-        BundlesData responseData = namespaces.getBundlesData(testTenant, this.testLocalCluster,
-                "test-bundled-namespace-1");
-
-        assertEquals(responseData, bundle);
+        assertEquals(asyncRequests(ctx -> namespaces.getBundlesData(ctx, testTenant, this.testLocalCluster,
+                "test-bundled-namespace-1")), bundle);
     }
 
     @Test
@@ -917,7 +915,8 @@ public class NamespacesTest extends MockedPulsarServiceBaseTest {
             ArgumentCaptor<Response> captor = ArgumentCaptor.forClass(Response.class);
             verify(response, timeout(5000).times(1)).resume(captor.capture());
             // verify split bundles
-            BundlesData bundlesData = namespaces.getBundlesData(testTenant, testLocalCluster, bundledNsLocal);
+            BundlesData bundlesData = (BundlesData) asyncRequests(ctx -> namespaces.getBundlesData(ctx, testTenant,
+                    testLocalCluster, bundledNsLocal));
             assertNotNull(bundlesData);
             assertEquals(bundlesData.getBoundaries().size(), 3);
             assertEquals(bundlesData.getBoundaries().get(0), "0x00000000");
@@ -1063,8 +1062,11 @@ public class NamespacesTest extends MockedPulsarServiceBaseTest {
         NamespaceName testNs = this.testLocalNamespaces.get(0);
         PersistencePolicies persistence1 = new PersistencePolicies(3, 2, 1, 0.0);
         namespaces.setPersistence(testNs.getTenant(), testNs.getCluster(), testNs.getLocalName(), persistence1);
-        PersistencePolicies persistence2 = namespaces.getPersistence(testNs.getTenant(), testNs.getCluster(),
-                testNs.getLocalName());
+        AsyncResponse response = mock(AsyncResponse.class);
+        namespaces.getPersistence(response, testNs.getTenant(), testNs.getCluster(), testNs.getLocalName());
+        ArgumentCaptor<PersistencePolicies> captor = ArgumentCaptor.forClass(PersistencePolicies.class);
+        verify(response, timeout(5000).times(1)).resume(captor.capture());
+        PersistencePolicies persistence2 =  captor.getValue();
         assertEquals(persistence2, persistence1);
     }
 
