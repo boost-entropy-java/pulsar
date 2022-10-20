@@ -16,24 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pulsar.broker.service.persistent;
 
-import org.apache.pulsar.broker.service.streamingdispatch.StreamingDispatcher;
-import org.apache.pulsar.client.api.SubscriptionMessageDispatchThrottlingTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+package org.apache.pulsar.io.jdbc;
+
+import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
 
 /**
- * SubscriptionMessageDispatchThrottlingTest with {@link StreamingDispatcher}
+ * Jdbc Sink test with JDBC Batches API enabled
  */
-@Test(groups = "flaky")
-public class PersistentSubscriptionMessageDispatchStreamingDispatcherThrottlingTest
-    extends SubscriptionMessageDispatchThrottlingTest {
+@Slf4j
+public class SqliteJdbcSinkBatchTest extends SqliteJdbcSinkTest {
 
-    @BeforeClass
     @Override
-    protected void setup() throws Exception {
-        super.setup();
-        conf.setStreamingDispatch(true);
+    protected void configure(Map<String, Object> configuration) {
+        configuration.put("useJdbcBatch", "true");
     }
 }
