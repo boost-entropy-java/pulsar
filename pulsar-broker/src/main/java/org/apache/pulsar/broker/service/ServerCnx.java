@@ -41,6 +41,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.concurrent.Promise;
 import io.prometheus.client.Gauge;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
@@ -138,6 +139,7 @@ import org.apache.pulsar.common.api.proto.ProducerAccessMode;
 import org.apache.pulsar.common.api.proto.ProtocolVersion;
 import org.apache.pulsar.common.api.proto.Schema;
 import org.apache.pulsar.common.api.proto.ServerError;
+import org.apache.pulsar.common.api.proto.SingleMessageMetadata;
 import org.apache.pulsar.common.api.proto.TxnAction;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.apache.pulsar.common.naming.Metadata;
@@ -1025,6 +1027,9 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         final KeySharedMeta keySharedMeta = subscribe.hasKeySharedMeta()
               ? new KeySharedMeta().copyFrom(subscribe.getKeySharedMeta())
               : emptyKeySharedMeta;
+        final long consumerEpoch = subscribe.hasConsumerEpoch() ? subscribe.getConsumerEpoch() : DEFAULT_CONSUMER_EPOCH;
+        final Optional<Map<String, String>> subscriptionProperties = SubscriptionOption.getPropertiesMap(
+                subscribe.getSubscriptionPropertiesList());
 
         if (log.isDebugEnabled()) {
             log.debug("Topic name = {}, subscription name = {}, schema is {}", topicName, subscriptionName,
@@ -1089,14 +1094,6 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                     return null;
                 }
 
-                final long consumerEpoch;
-                if (subscribe.hasConsumerEpoch()) {
-                    consumerEpoch = subscribe.getConsumerEpoch();
-                } else {
-                    consumerEpoch = DEFAULT_CONSUMER_EPOCH;
-                }
-                Optional<Map<String, String>> subscriptionProperties = SubscriptionOption.getPropertiesMap(
-                        subscribe.getSubscriptionPropertiesList());
                 service.isAllowAutoTopicCreationAsync(topicName.toString())
                         .thenApply(isAllowed -> forceTopicCreation && isAllowed)
                         .thenCompose(createTopicIfDoesNotExist ->
@@ -1634,6 +1631,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         final boolean hasRequestId = ack.hasRequestId();
         final long requestId = hasRequestId ? ack.getRequestId() : 0;
         final long consumerId = ack.getConsumerId();
+        final CommandAck finalAck = getBrokerService().getInterceptor() != null ? new CommandAck().copyFrom(ack) : null;
 
         if (consumerFuture != null && consumerFuture.isDone() && !consumerFuture.isCompletedExceptionally()) {
             Consumer consumer = consumerFuture.getNow(null);
@@ -1642,7 +1640,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             ctx.writeAndFlush(Commands.newAckResponse(
                                     requestId, null, null, consumerId));
                         }
-                getBrokerService().getInterceptor().messageAcked(this, consumer, ack);
+                getBrokerService().getInterceptor().messageAcked(this, consumer, finalAck);
             }).exceptionally(e -> {
                         if (hasRequestId) {
                             ctx.writeAndFlush(Commands.newAckResponse(requestId,
@@ -1995,9 +1993,17 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             if (entry != null) {
                 // in this case, all the data has been compacted, so return the last position
                 // in the compacted ledger to the client
-                MessageMetadata metadata = Commands.parseMessageMetadata(entry.getDataBuffer());
-                int bs = metadata.getNumMessagesInBatch();
-                int largestBatchIndex = bs > 0 ? bs - 1 : -1;
+                ByteBuf payload = entry.getDataBuffer();
+                MessageMetadata metadata = Commands.parseMessageMetadata(payload);
+                int largestBatchIndex;
+                try {
+                    largestBatchIndex = calculateTheLastBatchIndexInBatch(metadata, payload);
+                } catch (IOException ioEx){
+                    ctx.writeAndFlush(Commands.newError(requestId, ServerError.MetadataError,
+                            "Failed to deserialize batched message from the last entry of the compacted Ledger: "
+                                    + ioEx.getMessage()));
+                    return;
+                }
                 ctx.writeAndFlush(Commands.newGetLastMessageIdResponse(requestId,
                         entry.getLedgerId(), entry.getEntryId(), partitionIndex, largestBatchIndex,
                         markDeletePosition != null ? markDeletePosition.getLedgerId() : -1,
@@ -2018,6 +2024,25 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             + ex.getCause().getMessage()));
             return null;
         });
+    }
+
+    private int calculateTheLastBatchIndexInBatch(MessageMetadata metadata, ByteBuf payload) throws IOException {
+        int batchSize = metadata.getNumMessagesInBatch();
+        if (batchSize <= 1){
+            return -1;
+        }
+        SingleMessageMetadata singleMessageMetadata = new SingleMessageMetadata();
+        int lastBatchIndexInBatch = -1;
+        for (int i = 0; i < batchSize; i++){
+            ByteBuf singleMessagePayload =
+                    Commands.deSerializeSingleMessageInBatch(payload, singleMessageMetadata, i, batchSize);
+            singleMessagePayload.release();
+            if (singleMessageMetadata.isCompactedOut()){
+                continue;
+            }
+            lastBatchIndexInBatch = i;
+        }
+        return lastBatchIndexInBatch;
     }
 
     private CompletableFuture<Boolean> isNamespaceOperationAllowed(NamespaceName namespaceName,
@@ -2304,7 +2329,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                     if (log.isDebugEnabled()) {
                         log.debug("Send response {} for new txn request {}", tcId.getId(), requestId);
                     }
-                    commandSender.sendNewTxnResponse(requestId, txnID, command.getTcId());
+                    commandSender.sendNewTxnResponse(requestId, txnID, tcId.getId());
                 } else {
                     if (ex instanceof CoordinatorException.ReachMaxActiveTxnException) {
                         // if new txn throw ReachMaxActiveTxnException, don't return any response to client,
