@@ -111,6 +111,8 @@ flexible messaging model and an intuitive client API.</description>
     <testFailFast>true</testFailFast>
     <testFailFastFile></testFailFastFile>
     <testJacocoAgentArgument/>
+    <integrationtest.coverage.enabled>false</integrationtest.coverage.enabled>
+    <integrationtest.coverage.dir>${project.build.directory}</integrationtest.coverage.dir>
     <testHeapDumpPath>/tmp</testHeapDumpPath>
     <surefire.shutdown>kill</surefire.shutdown>
     <docker.organization>apachepulsar</docker.organization>
@@ -172,7 +174,7 @@ flexible messaging model and an intuitive client API.</description>
     <guice.version>5.1.0</guice.version>
     <sqlite-jdbc.version>3.36.0.3</sqlite-jdbc.version>
     <mysql-jdbc.version>8.0.11</mysql-jdbc.version>
-    <postgresql-jdbc.version>42.4.1</postgresql-jdbc.version>
+    <postgresql-jdbc.version>42.5.1</postgresql-jdbc.version>
     <clickhouse-jdbc.version>0.3.2-patch11</clickhouse-jdbc.version>
     <mariadb-jdbc.version>2.7.5</mariadb-jdbc.version>
     <openmldb-jdbc.version>0.4.4-hotfix1</openmldb-jdbc.version>
@@ -188,7 +190,7 @@ flexible messaging model and an intuitive client API.</description>
     <opencensus.version>0.28.0</opencensus.version>
     <hadoop2.version>2.10.2</hadoop2.version>
     <hadoop3.version>3.3.4</hadoop3.version>
-    <hbase.version>2.4.9</hbase.version>
+    <hbase.version>2.4.15</hbase.version>
     <guava.version>31.0.1-jre</guava.version>
     <jcip.version>1.0</jcip.version>
     <prometheus-jmx.version>0.16.1</prometheus-jmx.version>
