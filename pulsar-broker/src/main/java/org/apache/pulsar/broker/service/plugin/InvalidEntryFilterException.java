@@ -16,4 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pulsar.broker.loadbalance.extensions.strategy;
+package org.apache.pulsar.broker.service.plugin;
+
+public class InvalidEntryFilterException extends Exception {
+
+    public InvalidEntryFilterException(String message) {
+        super(message);
+    }
+
+    public InvalidEntryFilterException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
