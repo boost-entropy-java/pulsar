@@ -39,6 +39,7 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.ScheduledFuture;
 import io.prometheus.client.Gauge;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -195,10 +196,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
     // In case of proxy, if the authentication credentials are forwardable,
     // it will hold the credentials of the original client
     private AuthenticationState originalAuthState;
-    private AuthenticationDataSource originalAuthData;
+    private volatile AuthenticationDataSource originalAuthData;
     // Keep temporarily in order to verify after verifying proxy's authData
     private AuthData originalAuthDataCopy;
     private boolean pendingAuthChallengeResponse = false;
+    private ScheduledFuture<?> authRefreshTask;
 
     // Max number of pending requests per connections. If multiple producers are sharing the same connection the flow
     // control done by a single producer might not be enough to prevent write spikes on the broker.
@@ -210,7 +212,6 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
     private int nonPersistentPendingMessages = 0;
     private final int maxNonPersistentPendingMessages;
     private String originalPrincipal = null;
-    private Set<String> proxyRoles;
     private final boolean schemaValidationEnforced;
     private String authMethod = "none";
     private final int maxMessageSize;
@@ -282,7 +283,6 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         this.recentlyClosedProducers = new HashMap<>();
         this.replicatorPrefix = conf.getReplicatorPrefix();
         this.maxNonPersistentPendingMessages = conf.getMaxConcurrentNonPersistentMessagePerConnection();
-        this.proxyRoles = conf.getProxyRoles();
         this.schemaValidationEnforced = conf.isSchemaValidationEnforced();
         this.maxMessageSize = conf.getMaxMessageSize();
         this.maxPendingSendRequests = conf.getMaxPendingPublishRequestsPerConnection();
@@ -334,6 +334,9 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         }
 
         cnxsPerThread.get().remove(this);
+        if (authRefreshTask != null) {
+            authRefreshTask.cancel(false);
+        }
 
         // Connection is gone, close the producers immediately
         producers.forEach((__, producerFuture) -> {
@@ -398,32 +401,6 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             }
         }
         ctx.close();
-    }
-
-    /**
-     * When transitioning from Connecting to Connected, this method validates the roles.
-     * If the authRole is one of proxyRoles, the following must be true:
-     * - the originalPrincipal is given while connecting
-     * - originalPrincipal is not blank
-     * - originalPrincipal is not a proxy principal.
-     * @return true when roles are valid and false when roles are invalid
-     */
-    private boolean isValidRoleAndOriginalPrincipal() {
-        String errorMsg = null;
-        if (proxyRoles.contains(authRole)) {
-            if (StringUtils.isBlank(originalPrincipal)) {
-                errorMsg = "originalPrincipal must be provided when connecting with a proxy role.";
-            } else if (proxyRoles.contains(originalPrincipal)) {
-                errorMsg = "originalPrincipal cannot be a proxy role.";
-            }
-        }
-        if (errorMsg != null) {
-            log.warn("[{}] Illegal combination of role [{}] and originalPrincipal [{}]: {}", remoteAddress, authRole,
-                    originalPrincipal, errorMsg);
-            return false;
-        } else {
-            return true;
-        }
     }
 
     // ////
@@ -693,14 +670,18 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
     // complete the connect and sent newConnected command
     private void completeConnect(int clientProtoVersion, String clientVersion) {
-        if (service.isAuthenticationEnabled() && service.isAuthorizationEnabled()) {
-            if (!isValidRoleAndOriginalPrincipal()) {
-                state = State.Failed;
-                service.getPulsarStats().recordConnectionCreateFail();
-                final ByteBuf msg = Commands.newError(-1, ServerError.AuthorizationError, "Invalid roles.");
-                NettyChannelUtil.writeAndFlushWithClosePromise(ctx, msg);
-                return;
+        if (service.isAuthenticationEnabled()) {
+            if (service.isAuthorizationEnabled()) {
+                if (!service.getAuthorizationService()
+                    .isValidOriginalPrincipal(authRole, originalPrincipal, remoteAddress)) {
+                    state = State.Failed;
+                    service.getPulsarStats().recordConnectionCreateFail();
+                    final ByteBuf msg = Commands.newError(-1, ServerError.AuthorizationError, "Invalid roles.");
+                    NettyChannelUtil.writeAndFlushWithClosePromise(ctx, msg);
+                    return;
+                }
             }
+            maybeScheduleAuthenticationCredentialsRefresh();
         }
         writeAndFlush(Commands.newConnected(clientProtoVersion, maxMessageSize, enableSubscriptionPatternEvaluation));
         state = State.Connected;
@@ -799,7 +780,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                     log.debug("[{}] Authentication in progress client by method {}.", remoteAddress, authMethod);
                 }
             }
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             authenticationFailed(e);
         }
     }
@@ -826,7 +807,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                         remoteAddress, originalPrincipal);
                             }
                             completeConnect(clientProtoVersion, clientVersion);
-                        } catch (Exception e) {
+                        } catch (Exception | AssertionError e) {
                             authenticationFailed(e);
                         }
                     }
@@ -848,61 +829,75 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         NettyChannelUtil.writeAndFlushWithClosePromise(ctx, msg);
     }
 
-    public void refreshAuthenticationCredentials() {
-        AuthenticationState authState = this.originalAuthState != null ? originalAuthState : this.authState;
-
+    /**
+     * Method to initialize the {@link #authRefreshTask} task.
+     */
+    private void maybeScheduleAuthenticationCredentialsRefresh() {
+        assert ctx.executor().inEventLoop();
+        assert authRefreshTask == null;
         if (authState == null) {
             // Authentication is disabled or there's no local state to refresh
             return;
-        } else if (getState() != State.Connected || !isActive) {
-            // Connection is either still being established or already closed.
+        }
+        authRefreshTask = ctx.executor().scheduleAtFixedRate(this::refreshAuthenticationCredentials,
+                service.getPulsar().getConfig().getAuthenticationRefreshCheckSeconds(),
+                service.getPulsar().getConfig().getAuthenticationRefreshCheckSeconds(),
+                TimeUnit.SECONDS);
+    }
+
+    private void refreshAuthenticationCredentials() {
+        assert ctx.executor().inEventLoop();
+        AuthenticationState authState = this.originalAuthState != null ? originalAuthState : this.authState;
+        if (getState() == State.Failed) {
+            // Happens when an exception is thrown that causes this connection to close.
             return;
         } else if (!authState.isExpired()) {
             // Credentials are still valid. Nothing to do at this point
             return;
         } else if (originalPrincipal != null && originalAuthState == null) {
+            // This case is only checked when the authState is expired because we've reached a point where
+            // authentication needs to be refreshed, but the protocol does not support it unless the proxy forwards
+            // the originalAuthData.
             log.info(
                     "[{}] Cannot revalidate user credential when using proxy and"
                             + " not forwarding the credentials. Closing connection",
                     remoteAddress);
+            ctx.close();
             return;
         }
 
-        ctx.executor().execute(SafeRun.safeRun(() -> {
-            log.info("[{}] Refreshing authentication credentials for originalPrincipal {} and authRole {}",
-                    remoteAddress, originalPrincipal, this.authRole);
+        if (!supportsAuthenticationRefresh()) {
+            log.warn("[{}] Closing connection because client doesn't support auth credentials refresh",
+                    remoteAddress);
+            ctx.close();
+            return;
+        }
 
-            if (!supportsAuthenticationRefresh()) {
-                log.warn("[{}] Closing connection because client doesn't support auth credentials refresh",
-                        remoteAddress);
-                ctx.close();
-                return;
-            }
+        if (pendingAuthChallengeResponse) {
+            log.warn("[{}] Closing connection after timeout on refreshing auth credentials",
+                    remoteAddress);
+            ctx.close();
+            return;
+        }
 
-            if (pendingAuthChallengeResponse) {
-                log.warn("[{}] Closing connection after timeout on refreshing auth credentials",
-                        remoteAddress);
-                ctx.close();
-                return;
-            }
+        log.info("[{}] Refreshing authentication credentials for originalPrincipal {} and authRole {}",
+                remoteAddress, originalPrincipal, this.authRole);
+        try {
+            AuthData brokerData = authState.refreshAuthentication();
 
-            try {
-                AuthData brokerData = authState.refreshAuthentication();
-
-                writeAndFlush(Commands.newAuthChallenge(authMethod, brokerData,
-                        getRemoteEndpointProtocolVersion()));
-                if (log.isDebugEnabled()) {
-                    log.debug("[{}] Sent auth challenge to client to refresh credentials with method: {}.",
+            writeAndFlush(Commands.newAuthChallenge(authMethod, brokerData,
+                    getRemoteEndpointProtocolVersion()));
+            if (log.isDebugEnabled()) {
+                log.debug("[{}] Sent auth challenge to client to refresh credentials with method: {}.",
                         remoteAddress, authMethod);
-                }
-
-                pendingAuthChallengeResponse = true;
-
-            } catch (AuthenticationException e) {
-                log.warn("[{}] Failed to refresh authentication: {}", remoteAddress, e);
-                ctx.close();
             }
-        }));
+
+            pendingAuthChallengeResponse = true;
+
+        } catch (AuthenticationException e) {
+            log.warn("[{}] Failed to refresh authentication: {}", remoteAddress, e);
+            ctx.close();
+        }
     }
 
     private static final byte[] emptyArray = new byte[0];
@@ -1212,7 +1207,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                         remoteAddress, topicName, subscriptionName);
                                 commandSender.sendSuccessResponse(requestId);
                                 if (brokerInterceptor != null) {
-                                    brokerInterceptor.consumerCreated(this, consumer, metadata);
+                                    try {
+                                        brokerInterceptor.consumerCreated(this, consumer, metadata);
+                                    } catch (Throwable t) {
+                                        log.error("Exception occur when intercept consumer created.", t);
+                                    }
                                 }
                             } else {
                                 // The consumer future was completed before by a close command
@@ -1250,8 +1249,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             }
 
                             // If client timed out, the future would have been completed by subsequent close.
-                            // Send error
-                            // back to client, only if not completed already.
+                            // Send error back to client, only if not completed already.
                             if (consumerFuture.completeExceptionally(exception)) {
                                 commandSender.sendErrorResponse(requestId,
                                         BrokerServiceException.getClientErrorCode(exception),
@@ -1548,8 +1546,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             producer.getLastSequenceId(), producer.getSchemaVersion(),
                             newTopicEpoch, true /* producer is ready now */);
                     if (brokerInterceptor != null) {
-                        brokerInterceptor.
-                                producerCreated(this, producer, metadata);
+                        try {
+                            brokerInterceptor.producerCreated(this, producer, metadata);
+                        } catch (Throwable t) {
+                            log.error("Exception occur when intercept producer created.", t);
+                        }
                     }
                     return;
                 } else {
@@ -1716,7 +1717,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             requestId, null, null, consumerId));
                 }
                 if (brokerInterceptor != null) {
-                    brokerInterceptor.messageAcked(this, consumer, copyOfAckForInterceptor);
+                    try {
+                        brokerInterceptor.messageAcked(this, consumer, copyOfAckForInterceptor);
+                    } catch (Throwable t) {
+                        log.error("Exception occur when intercept message acked.", t);
+                    }
                 }
             }).exceptionally(e -> {
                 if (hasRequestId) {
