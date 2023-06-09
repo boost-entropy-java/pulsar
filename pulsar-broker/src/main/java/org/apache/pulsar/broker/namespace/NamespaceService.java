@@ -1108,19 +1108,7 @@ public class NamespaceService implements AutoCloseable {
     }
 
     public boolean isServiceUnitOwned(ServiceUnitId suName) throws Exception {
-        if (suName instanceof TopicName) {
-            return isTopicOwnedAsync((TopicName) suName).get();
-        }
-
-        if (suName instanceof NamespaceName) {
-            return isNamespaceOwned((NamespaceName) suName);
-        }
-
-        if (suName instanceof NamespaceBundle) {
-            return ownershipCache.isNamespaceBundleOwned((NamespaceBundle) suName);
-        }
-
-        throw new IllegalArgumentException("Invalid class of NamespaceBundle: " + suName.getClass().getName());
+        return isServiceUnitOwnedAsync(suName).get(config.getMetadataStoreOperationTimeoutSeconds(), TimeUnit.SECONDS);
     }
 
     public CompletableFuture<Boolean> isServiceUnitOwnedAsync(ServiceUnitId suName) {
@@ -1174,10 +1162,6 @@ public class NamespaceService implements AutoCloseable {
         });
     }
 
-    private boolean isNamespaceOwned(NamespaceName fqnn) throws Exception {
-        return ownershipCache.getOwnedBundle(getFullBundle(fqnn)) != null;
-    }
-
     private CompletableFuture<Boolean> isNamespaceOwnedAsync(NamespaceName fqnn) {
         // TODO: Add unit tests cover it.
         if (ExtensibleLoadManagerImpl.isLoadManagerExtensionEnabled(config)) {
@@ -1218,13 +1202,13 @@ public class NamespaceService implements AutoCloseable {
         return future.thenRun(() -> bundleFactory.invalidateBundleCache(nsBundle.getNamespaceObject()));
     }
 
-    protected void onNamespaceBundleOwned(NamespaceBundle bundle) {
+    public void onNamespaceBundleOwned(NamespaceBundle bundle) {
         for (NamespaceBundleOwnershipListener bundleOwnedListener : bundleOwnershipListeners) {
             notifyNamespaceBundleOwnershipListener(bundle, bundleOwnedListener);
         }
     }
 
-    protected void onNamespaceBundleUnload(NamespaceBundle bundle) {
+    public void onNamespaceBundleUnload(NamespaceBundle bundle) {
         for (NamespaceBundleOwnershipListener bundleOwnedListener : bundleOwnershipListeners) {
             try {
                 if (bundleOwnedListener.test(bundle)) {
@@ -1236,7 +1220,7 @@ public class NamespaceService implements AutoCloseable {
         }
     }
 
-    protected void onNamespaceBundleSplit(NamespaceBundle bundle) {
+    public void onNamespaceBundleSplit(NamespaceBundle bundle) {
         for (NamespaceBundleSplitListener bundleSplitListener : bundleSplitListeners) {
             try {
                 if (bundleSplitListener.test(bundle)) {
