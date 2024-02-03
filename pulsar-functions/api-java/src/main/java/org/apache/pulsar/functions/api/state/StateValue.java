@@ -16,26 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pulsar.common.policies.data;
+package org.apache.pulsar.functions.api.state;
 
-import org.apache.pulsar.common.policies.data.impl.DelayedDeliveryPoliciesImpl;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-/**
- * Definition of the delayed delivery policy.
- */
-public interface DelayedDeliveryPolicies {
-    long getTickTime();
-    boolean isActive();
-    long getMaxDeliveryDelayInMillis();
-
-    interface Builder {
-        Builder tickTime(long tickTime);
-        Builder active(boolean active);
-        Builder maxDeliveryDelayInMillis(long maxDeliveryDelayInMillis);
-        DelayedDeliveryPolicies build();
-    }
-
-    static Builder builder() {
-        return DelayedDeliveryPoliciesImpl.builder();
-    }
+@Getter
+@AllArgsConstructor
+public class StateValue {
+    private final byte[] value;
+    private final Long version;
+    private final Boolean isNumber;
 }
