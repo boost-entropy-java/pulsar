@@ -138,7 +138,7 @@ flexible messaging model and an intuitive client API.</description>
     <commons-compress.version>1.26.0</commons-compress.version>
 
     <bookkeeper.version>4.16.4</bookkeeper.version>
-    <zookeeper.version>3.9.1</zookeeper.version>
+    <zookeeper.version>3.9.2</zookeeper.version>
     <commons-cli.version>1.5.0</commons-cli.version>
     <commons-text.version>1.10.0</commons-text.version>
     <snappy.version>1.1.10.5</snappy.version> <!-- ZooKeeper server -->
@@ -185,7 +185,7 @@ flexible messaging model and an intuitive client API.</description>
     <aws-sdk.version>1.12.262</aws-sdk.version>
     <avro.version>1.11.3</avro.version>
     <joda.version>2.10.10</joda.version>
-    <jclouds.version>2.5.0</jclouds.version>
+    <jclouds.version>2.6.0</jclouds.version>
     <guice.version>5.1.0</guice.version>
     <sqlite-jdbc.version>3.42.0.0</sqlite-jdbc.version>
     <mysql-jdbc.version>8.0.11</mysql-jdbc.version>
@@ -237,6 +237,7 @@ flexible messaging model and an intuitive client API.</description>
     <jakarta.validation.version>2.0.2</jakarta.validation.version>
     <jna.version>5.12.1</jna.version>
     <kubernetesclient.version>18.0.0</kubernetesclient.version>
+    <jose4j.version>0.9.4</jose4j.version>
     <okhttp3.version>4.9.3</okhttp3.version>
     <!-- use okio version that matches the okhttp3 version -->
     <okio.version>3.4.0</okio.version>
@@ -627,6 +628,12 @@ flexible messaging model and an intuitive client API.</description>
         <groupId>org.rocksdb</groupId>
         <artifactId>rocksdbjni</artifactId>
         <version>${rocksdb.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.bitbucket.b_c</groupId>
+        <artifactId>jose4j</artifactId>
+        <version>${jose4j.version}</version>
       </dependency>
 
       <dependency>

@@ -263,7 +263,7 @@ The Apache Software License, Version 2.0
  * Caffeine -- com.github.ben-manes.caffeine-caffeine-2.9.1.jar
  * Conscrypt -- org.conscrypt-conscrypt-openjdk-uber-2.5.2.jar
  * Proto Google Common Protos -- com.google.api.grpc-proto-google-common-protos-2.9.0.jar
- * Bitbucket -- org.bitbucket.b_c-jose4j-0.9.3.jar
+ * Bitbucket -- org.bitbucket.b_c-jose4j-0.9.4.jar
  * Gson
     - com.google.code.gson-gson-2.8.9.jar
     - io.gsonfire-gson-fire-1.8.5.jar
@@ -495,9 +495,9 @@ The Apache Software License, Version 2.0
     - io.vertx-vertx-web-common-4.3.8.jar
     - io.vertx-vertx-grpc-4.3.5.jar
   * Apache ZooKeeper
-    - org.apache.zookeeper-zookeeper-3.9.1.jar
-    - org.apache.zookeeper-zookeeper-jute-3.9.1.jar
-    - org.apache.zookeeper-zookeeper-prometheus-metrics-3.9.1.jar
+    - org.apache.zookeeper-zookeeper-3.9.2.jar
+    - org.apache.zookeeper-zookeeper-jute-3.9.2.jar
+    - org.apache.zookeeper-zookeeper-prometheus-metrics-3.9.2.jar
   * Snappy Java
     - org.xerial.snappy-snappy-java-1.1.10.5.jar
   * Google HTTP Client
