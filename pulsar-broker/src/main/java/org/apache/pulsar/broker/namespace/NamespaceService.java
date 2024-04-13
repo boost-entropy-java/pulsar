@@ -192,7 +192,7 @@ public class NamespaceService implements AutoCloseable {
         this.config = pulsar.getConfiguration();
         this.loadManager = pulsar.getLoadManager();
         this.bundleFactory = new NamespaceBundleFactory(pulsar, Hashing.crc32());
-        this.ownershipCache = new OwnershipCache(pulsar, bundleFactory, this);
+        this.ownershipCache = new OwnershipCache(pulsar, this);
         this.namespaceClients =
                 ConcurrentOpenHashMap.<ClusterDataImpl, PulsarClientImpl>newBuilder().build();
         this.bundleOwnershipListeners = new CopyOnWriteArrayList<>();
@@ -539,23 +539,12 @@ public class NamespaceService implements AutoCloseable {
     private void searchForCandidateBroker(NamespaceBundle bundle,
                                           CompletableFuture<Optional<LookupResult>> lookupFuture,
                                           LookupOptions options) {
-        if (null == pulsar.getLeaderElectionService()) {
+        String candidateBroker;
+        LeaderElectionService les = pulsar.getLeaderElectionService();
+        if (les == null) {
             LOG.warn("The leader election has not yet been completed! NamespaceBundle[{}]", bundle);
             lookupFuture.completeExceptionally(
                     new IllegalStateException("The leader election has not yet been completed!"));
-            return;
-        }
-        String candidateBroker;
-
-        LeaderElectionService les = pulsar.getLeaderElectionService();
-        if (les == null) {
-            // The leader election service was not initialized yet. This can happen because the broker service is
-            // initialized first, and it might start receiving lookup requests before the leader election service is
-            // fully initialized.
-            LOG.warn("Leader election service isn't initialized yet. "
-                            + "Returning empty result to lookup. NamespaceBundle[{}]",
-                    bundle);
-            lookupFuture.complete(Optional.empty());
             return;
         }
 

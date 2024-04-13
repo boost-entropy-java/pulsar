@@ -2740,6 +2740,10 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
     @Override
     public CompletableFuture<Void> checkClusterMigration() {
+        if (ExtensibleLoadManagerImpl.isInternalTopic(topic)) {
+            return CompletableFuture.completedFuture(null);
+        }
+
         Optional<ClusterUrl> clusterUrl = getMigratedClusterUrl();
 
         if (!clusterUrl.isPresent()) {
@@ -3220,14 +3224,14 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             if ((retentionPolicy == BacklogQuota.RetentionPolicy.producer_request_hold
                     || retentionPolicy == BacklogQuota.RetentionPolicy.producer_exception)) {
                 if (backlogQuotaType == BacklogQuotaType.destination_storage && isSizeBacklogExceeded()) {
-                    log.info("[{}] Size backlog quota exceeded. Cannot create producer [{}]", this.getName(),
+                    log.debug("[{}] Size backlog quota exceeded. Cannot create producer [{}]", this.getName(),
                             producerName);
                     return FutureUtil.failedFuture(new TopicBacklogQuotaExceededException(retentionPolicy));
                 }
                 if (backlogQuotaType == BacklogQuotaType.message_age) {
                     return checkTimeBacklogExceeded().thenCompose(isExceeded -> {
                         if (isExceeded) {
-                            log.info("[{}] Time backlog quota exceeded. Cannot create producer [{}]", this.getName(),
+                            log.debug("[{}] Time backlog quota exceeded. Cannot create producer [{}]", this.getName(),
                                     producerName);
                             return FutureUtil.failedFuture(new TopicBacklogQuotaExceededException(retentionPolicy));
                         } else {
