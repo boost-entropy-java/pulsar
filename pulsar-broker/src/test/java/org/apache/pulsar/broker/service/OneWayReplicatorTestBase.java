@@ -150,12 +150,16 @@ public abstract class OneWayReplicatorTestBase extends TestRetrySupport {
     }
 
     protected void cleanupTopics(CleanupTopicAction cleanupTopicAction) throws Exception {
-        waitChangeEventsInit(replicatedNamespace);
-        admin1.namespaces().setNamespaceReplicationClusters(replicatedNamespace, Collections.singleton(cluster1));
-        admin1.namespaces().unload(replicatedNamespace);
+        cleanupTopics(replicatedNamespace, cleanupTopicAction);
+    }
+
+    protected void cleanupTopics(String namespace, CleanupTopicAction cleanupTopicAction) throws Exception {
+        waitChangeEventsInit(namespace);
+        admin1.namespaces().setNamespaceReplicationClusters(namespace, Collections.singleton(cluster1));
+        admin1.namespaces().unload(namespace);
         cleanupTopicAction.run();
-        admin1.namespaces().setNamespaceReplicationClusters(replicatedNamespace, Sets.newHashSet(cluster1, cluster2));
-        waitChangeEventsInit(replicatedNamespace);
+        admin1.namespaces().setNamespaceReplicationClusters(namespace, Sets.newHashSet(cluster1, cluster2));
+        waitChangeEventsInit(namespace);
     }
 
     protected void waitChangeEventsInit(String namespace) {
@@ -236,27 +240,51 @@ public abstract class OneWayReplicatorTestBase extends TestRetrySupport {
         log.info("--- Shutting down ---");
 
         // Stop brokers.
-        client1.close();
-        client2.close();
-        admin1.close();
-        admin2.close();
+        if (client1 != null) {
+            client1.close();
+            client1 = null;
+        }
+        if (client2 != null) {
+            client2.close();
+            client2 = null;
+        }
+        if (admin1 != null) {
+            admin1.close();
+            admin1 = null;
+        }
+        if (admin2 != null) {
+            admin2.close();
+            admin2 = null;
+        }
         if (pulsar2 != null) {
             pulsar2.close();
+            pulsar2 = null;
         }
         if (pulsar1 != null) {
             pulsar1.close();
+            pulsar1 = null;
         }
 
         // Stop ZK and BK.
-        bkEnsemble1.stop();
-        bkEnsemble2.stop();
-        brokerConfigZk1.stop();
-        brokerConfigZk2.stop();
+        if (bkEnsemble1 != null) {
+            bkEnsemble1.stop();
+            bkEnsemble1 = null;
+        }
+        if (bkEnsemble2 != null) {
+            bkEnsemble2.stop();
+            bkEnsemble2 = null;
+        }
+        if (brokerConfigZk1 != null) {
+            brokerConfigZk1.stop();
+            brokerConfigZk1 = null;
+        }
+        if (brokerConfigZk2 != null) {
+            brokerConfigZk2.stop();
+            brokerConfigZk2 = null;
+        }
 
         // Reset configs.
         config1 = new ServiceConfiguration();
-        setConfigDefaults(config1, cluster1, bkEnsemble1, brokerConfigZk1);
         config2 = new ServiceConfiguration();
-        setConfigDefaults(config2, cluster2, bkEnsemble2, brokerConfigZk2);
     }
 }
