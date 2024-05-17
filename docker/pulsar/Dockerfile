@@ -39,7 +39,7 @@ COPY scripts/* /pulsar/bin/
 # container when gid=0 is prohibited. In that case, the container must be run with uid 10000 with
 # any group id != 0 (for example 10001).
 # The file permissions are preserved when copying files from this builder image to the target image.
-RUN for SUBDIRECTORY in conf data download logs instances/deps; do \
+RUN for SUBDIRECTORY in conf data download logs instances/deps packages-storage; do \
      mkdir -p /pulsar/$SUBDIRECTORY; \
      chmod -R ug+rwx /pulsar/$SUBDIRECTORY; \
      chown -R 10000:0 /pulsar/$SUBDIRECTORY; \
@@ -98,7 +98,12 @@ RUN apk add --no-cache \
             py3-pip \
             gcompat \
             ca-certificates \
-            procps
+            procps \
+            curl
+
+# Fix CVE-2024-2511 by upgrading to OpenSSL 3.1.4-r6
+# We can remove once new Alpine image is released
+RUN apk upgrade --no-cache libssl3 libcrypto3
 
 # Install GLibc compatibility library
 COPY --from=glibc /root/packages /root/packages
