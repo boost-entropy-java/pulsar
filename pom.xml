@@ -160,9 +160,9 @@ flexible messaging model and an intuitive client API.</description>
     <slf4j.version>2.0.13</slf4j.version>
     <commons.collections4.version>4.4</commons.collections4.version>
     <log4j2.version>2.23.1</log4j2.version>
-    <bouncycastle.version>1.78</bouncycastle.version>
-    <bouncycastle.bcpkix-fips.version>1.0.6</bouncycastle.bcpkix-fips.version>
-    <bouncycastle.bc-fips.version>1.0.2.4</bouncycastle.bc-fips.version>
+    <bouncycastle.version>1.78.1</bouncycastle.version>
+    <bouncycastle.bcpkix-fips.version>1.0.7</bouncycastle.bcpkix-fips.version>
+    <bouncycastle.bc-fips.version>1.0.2.5</bouncycastle.bc-fips.version>
     <jackson.version>2.14.2</jackson.version>
     <reflections.version>0.10.2</reflections.version>
     <swagger.version>1.6.2</swagger.version>
@@ -215,7 +215,7 @@ flexible messaging model and an intuitive client API.</description>
     <jcip.version>1.0</jcip.version>
     <prometheus-jmx.version>0.16.1</prometheus-jmx.version>
     <confluent.version>6.2.8</confluent.version>
-    <aircompressor.version>0.20</aircompressor.version>
+    <aircompressor.version>0.27</aircompressor.version>
     <asynchttpclient.version>2.12.1</asynchttpclient.version>
     <commons-lang3.version>3.11</commons-lang3.version>
     <commons-configuration.version>1.10</commons-configuration.version>
@@ -259,9 +259,9 @@ flexible messaging model and an intuitive client API.</description>
     <disruptor.version>3.4.3</disruptor.version>
     <zstd-jni.version>1.5.2-3</zstd-jni.version>
     <netty-reactive-streams.version>2.0.6</netty-reactive-streams.version>
-    <opentelemetry.version>1.37.0</opentelemetry.version>
+    <opentelemetry.version>1.38.0</opentelemetry.version>
     <opentelemetry.alpha.version>${opentelemetry.version}-alpha</opentelemetry.alpha.version>
-    <opentelemetry.instrumentation.version>1.33.2</opentelemetry.instrumentation.version>
+    <opentelemetry.instrumentation.version>1.33.3</opentelemetry.instrumentation.version>
     <opentelemetry.instrumentation.alpha.version>${opentelemetry.instrumentation.version}-alpha</opentelemetry.instrumentation.alpha.version>
     <opentelemetry.semconv.version>1.25.0-alpha</opentelemetry.semconv.version>
     <picocli.version>4.7.5</picocli.version>
