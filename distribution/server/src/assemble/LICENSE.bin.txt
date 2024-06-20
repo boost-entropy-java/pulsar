@@ -312,7 +312,6 @@ The Apache Software License, Version 2.0
     - io.netty-netty-transport-native-epoll-4.1.111.Final-linux-aarch_64.jar
     - io.netty-netty-transport-native-epoll-4.1.111.Final-linux-x86_64.jar
     - io.netty-netty-transport-native-unix-common-4.1.111.Final.jar
-    - io.netty-netty-transport-native-unix-common-4.1.111.Final-linux-x86_64.jar
     - io.netty-netty-tcnative-boringssl-static-2.0.65.Final.jar
     - io.netty-netty-tcnative-boringssl-static-2.0.65.Final-linux-aarch_64.jar
     - io.netty-netty-tcnative-boringssl-static-2.0.65.Final-linux-x86_64.jar
@@ -514,7 +513,7 @@ The Apache Software License, Version 2.0
   * RxJava
     - io.reactivex.rxjava3-rxjava-3.0.1.jar
   * RoaringBitmap
-    - org.roaringbitmap-RoaringBitmap-1.0.6.jar
+    - org.roaringbitmap-RoaringBitmap-1.1.0.jar
   * OpenTelemetry
     - io.opentelemetry-opentelemetry-api-1.38.0.jar
     - io.opentelemetry-opentelemetry-api-incubator-1.38.0-alpha.jar
