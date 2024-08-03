@@ -1402,19 +1402,23 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         }, null);
     }
 
-    void removeSubscription(String subscriptionName) {
+    CompletableFuture<Void> removeSubscription(String subscriptionName) {
         PersistentSubscription sub = subscriptions.remove(subscriptionName);
         if (sub != null) {
             // preserve accumulative stats form removed subscription
-            SubscriptionStatsImpl stats = sub.getStats(new GetStatsOptions(false, false, false, false, false));
-            bytesOutFromRemovedSubscriptions.add(stats.bytesOutCounter);
-            msgOutFromRemovedSubscriptions.add(stats.msgOutCounter);
+            return sub
+                    .getStatsAsync(new GetStatsOptions(false, false, false, false, false))
+                    .thenAccept(stats -> {
+                        bytesOutFromRemovedSubscriptions.add(stats.bytesOutCounter);
+                        msgOutFromRemovedSubscriptions.add(stats.msgOutCounter);
 
-            if (isSystemCursor(subscriptionName)
-                    || subscriptionName.startsWith(SystemTopicNames.SYSTEM_READER_PREFIX)) {
-                bytesOutFromRemovedSystemSubscriptions.add(stats.bytesOutCounter);
-            }
+                        if (isSystemCursor(subscriptionName)
+                                || subscriptionName.startsWith(SystemTopicNames.SYSTEM_READER_PREFIX)) {
+                            bytesOutFromRemovedSystemSubscriptions.add(stats.bytesOutCounter);
+                        }
+                    });
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -4242,15 +4246,13 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                             decrementPendingWriteOpsAndCheck();
                         })
                         .exceptionally(throwable -> {
-                            throwable = throwable.getCause();
+                            throwable = FutureUtil.unwrapCompletionException(throwable);
                             if (throwable instanceof NotAllowedException) {
                               publishContext.completed((NotAllowedException) throwable, -1, -1);
                               decrementPendingWriteOpsAndCheck();
-                              return null;
-                            } else if (!(throwable instanceof ManagedLedgerException)) {
-                                throwable = new ManagedLedgerException(throwable);
+                            } else {
+                                addFailed(ManagedLedgerException.getManagedLedgerException(throwable), publishContext);
                             }
-                            addFailed((ManagedLedgerException) throwable, publishContext);
                             return null;
                         });
                 break;
