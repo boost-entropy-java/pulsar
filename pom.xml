@@ -1627,6 +1627,12 @@ flexible messaging model and an intuitive client API.</description>
     </dependency>
 
     <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk-testing</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <scope>provided</scope>
@@ -2794,14 +2800,6 @@ flexible messaging model and an intuitive client API.</description>
       <id>maven.restlet.org</id>
       <name>maven.restlet.org</name>
       <url>https://maven.restlet.talend.com</url>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </repository>
-    <!-- For the BDB JE dependency -->
-    <repository>
-      <id>oracle.releases</id>
-      <url>https://download.oracle.com/maven</url>
       <snapshots>
         <enabled>false</enabled>
       </snapshots>
