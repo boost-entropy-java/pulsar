@@ -84,7 +84,6 @@ import org.apache.bookkeeper.mledger.impl.ManagedCursorContainer;
 import org.apache.bookkeeper.mledger.impl.ManagedCursorContainer.CursorInfo;
 import org.apache.bookkeeper.mledger.impl.ManagedCursorImpl;
 import org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl;
-import org.apache.bookkeeper.mledger.impl.ShadowManagedLedgerImpl;
 import org.apache.bookkeeper.mledger.util.Futures;
 import org.apache.bookkeeper.mledger.util.ManagedLedgerImplUtils;
 import org.apache.bookkeeper.net.BookieId;
@@ -426,7 +425,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             this.transactionBuffer = new TransactionBufferDisable(this);
         }
         transactionBuffer.syncMaxReadPositionForNormalPublish(ledger.getLastConfirmedEntry(), true);
-        if (ledger instanceof ShadowManagedLedgerImpl) {
+        if (ledger.getConfig().getShadowSource() != null) {
             shadowSourceTopic = TopicName.get(ledger.getConfig().getShadowSource());
         } else {
             shadowSourceTopic = null;
@@ -684,12 +683,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     }
 
     private void asyncAddEntry(ByteBuf headersAndPayload, PublishContext publishContext) {
-        if (brokerService.isBrokerEntryMetadataEnabled()) {
-            ledger.asyncAddEntry(headersAndPayload,
-                    (int) publishContext.getNumberOfMessages(), this, publishContext);
-        } else {
-            ledger.asyncAddEntry(headersAndPayload, this, publishContext);
-        }
+        ledger.asyncAddEntry(headersAndPayload,
+            (int) publishContext.getNumberOfMessages(), this, publishContext);
     }
 
     public void asyncReadEntry(Position position, AsyncCallbacks.ReadEntryCallback callback, Object ctx) {
@@ -4103,8 +4098,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             log.info("[{}] Enabling replicated subscriptions controller", topic);
             replicatedSubscriptionsController = Optional.of(new ReplicatedSubscriptionsController(this,
                     brokerService.pulsar().getConfiguration().getClusterName()));
-        } else if (isCurrentlyEnabled && !shouldBeEnabled || !isEnableReplicatedSubscriptions
-                || !replicationEnabled) {
+        } else if (isCurrentlyEnabled && (!shouldBeEnabled || !isEnableReplicatedSubscriptions
+                || !replicationEnabled)) {
             log.info("[{}] Disabled replicated subscriptions controller", topic);
             replicatedSubscriptionsController.ifPresent(ReplicatedSubscriptionsController::close);
             replicatedSubscriptionsController = Optional.empty();
