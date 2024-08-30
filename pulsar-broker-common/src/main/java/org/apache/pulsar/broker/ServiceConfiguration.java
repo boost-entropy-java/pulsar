@@ -21,9 +21,11 @@ package org.apache.pulsar.broker;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
@@ -1193,6 +1195,20 @@ public class ServiceConfiguration implements PulsarConfiguration {
         doc = "The read failure backoff mandatory stop time in milliseconds. By default it is 0s."
     )
     private int dispatcherReadFailureBackoffMandatoryStopTimeInMs = 0;
+
+    @FieldContext(
+            category = CATEGORY_POLICIES,
+            doc = "On Shared and KeyShared subscriptions, if all available messages in the subscription are filtered "
+                    + "out and not dispatched to any consumer, message dispatching will be rescheduled with a backoff "
+                    + "delay. This parameter sets the initial backoff delay in milliseconds.")
+    private int dispatcherRetryBackoffInitialTimeInMs = 100;
+
+    @FieldContext(
+            category = CATEGORY_POLICIES,
+            doc = "On Shared and KeyShared subscriptions, if all available messages in the subscription are filtered "
+                    + "out and not dispatched to any consumer, message dispatching will be rescheduled with a backoff "
+                    + "delay. This parameter sets the maximum backoff delay in milliseconds.")
+    private int dispatcherRetryBackoffMaxTimeInMs = 1000;
 
     @FieldContext(
             dynamic = true,
@@ -2947,6 +2963,13 @@ public class ServiceConfiguration implements PulsarConfiguration {
     private Properties properties = new Properties();
 
     @FieldContext(
+            category = CATEGORY_SERVER,
+            doc = "The properties whose name starts with this prefix will be uploaded to the metadata store for "
+                    + " the topic lookup"
+    )
+    private String lookupPropertyPrefix = "lookup.";
+
+    @FieldContext(
         dynamic = true,
         category = CATEGORY_SERVER,
         doc = "If true, (and ModularLoadManagerImpl is being used), the load manager will attempt to "
@@ -3742,5 +3765,15 @@ public class ServiceConfiguration implements PulsarConfiguration {
 
     public boolean isSystemTopicAndTopicLevelPoliciesEnabled() {
         return topicLevelPoliciesEnabled && systemTopicEnabled;
+    }
+
+    public Map<String, String> lookupProperties() {
+        final var map = new HashMap<String, String>();
+        properties.forEach((key, value) -> {
+            if (key instanceof String && value instanceof String && ((String) key).startsWith(lookupPropertyPrefix)) {
+                map.put((String) key, (String) value);
+            }
+        });
+        return map;
     }
 }
