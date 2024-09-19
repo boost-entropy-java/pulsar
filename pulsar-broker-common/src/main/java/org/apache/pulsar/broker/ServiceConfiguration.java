@@ -949,6 +949,36 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " back and unack count reaches to `limit/2`. Using a value of 0, is disabling unackedMessage-limit"
             + " check and broker doesn't block dispatchers")
     private int maxUnackedMessagesPerBroker = 0;
+
+    @FieldContext(
+            category = CATEGORY_POLICIES,
+            doc = "For Key_Shared subscriptions, if messages cannot be dispatched to consumers due to a slow consumer"
+                    + " or a blocked key hash (because of ordering constraints), the broker will continue reading more"
+                    + " messages from the backlog and attempt to dispatch them to consumers until the number of replay"
+                    + " messages reaches the calculated threshold.\n"
+                    + "Formula: threshold = min(keySharedLookAheadMsgInReplayThresholdPerConsumer *"
+                    + " connected consumer count, keySharedLookAheadMsgInReplayThresholdPerSubscription)"
+                    + ".\n"
+                    + "Setting this value to 0 will disable the limit calculated per consumer.",
+            dynamic = true
+    )
+    private int keySharedLookAheadMsgInReplayThresholdPerConsumer = 2000;
+
+    @FieldContext(
+            category = CATEGORY_POLICIES,
+            doc = "For Key_Shared subscriptions, if messages cannot be dispatched to consumers due to a slow consumer"
+                    + " or a blocked key hash (because of ordering constraints), the broker will continue reading more"
+                    + " messages from the backlog and attempt to dispatch them to consumers until the number of replay"
+                    + " messages reaches the calculated threshold.\n"
+                    + "Formula: threshold = min(keySharedLookAheadMsgInReplayThresholdPerConsumer *"
+                    + " connected consumer count, keySharedLookAheadMsgInReplayThresholdPerSubscription)"
+                    + ".\n"
+                    + "This value should be set to a value less than 2 * managedLedgerMaxUnackedRangesToPersist.\n"
+                    + "Setting this value to 0 will disable the limit calculated per subscription.\n",
+            dynamic = true
+    )
+    private int keySharedLookAheadMsgInReplayThresholdPerSubscription = 20000;
+
     @FieldContext(
         category = CATEGORY_POLICIES,
         doc = "Once broker reaches maxUnackedMessagesPerBroker limit, it blocks subscriptions which has higher "
@@ -1523,6 +1553,14 @@ public class ServiceConfiguration implements PulsarConfiguration {
         doc = "Enable or disable topic level policies, topic level policies depends on the system topic, "
                 + "please enable the system topic first.")
     private boolean topicLevelPoliciesEnabled = true;
+
+    @FieldContext(
+            category = CATEGORY_SERVER,
+            doc = "The class name of the topic policies service. The default config only takes affect when the "
+                    + "systemTopicEnable config is true"
+    )
+    private String topicPoliciesServiceClassName =
+            "org.apache.pulsar.broker.service.SystemTopicBasedTopicPoliciesService";
 
     @FieldContext(
             category = CATEGORY_SERVER,
@@ -3761,10 +3799,6 @@ public class ServiceConfiguration implements PulsarConfiguration {
     public int getTopicOrderedExecutorThreadNum() {
         return numWorkerThreadsForNonPersistentTopic > 0
                 ? numWorkerThreadsForNonPersistentTopic : topicOrderedExecutorThreadNum;
-    }
-
-    public boolean isSystemTopicAndTopicLevelPoliciesEnabled() {
-        return topicLevelPoliciesEnabled && systemTopicEnabled;
     }
 
     public Map<String, String> lookupProperties() {
