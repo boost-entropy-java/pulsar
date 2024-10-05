@@ -284,7 +284,7 @@ The Apache Software License, Version 2.0
     - commons-cli-commons-cli-1.5.0.jar
     - commons-codec-commons-codec-1.15.jar
     - commons-configuration-commons-configuration-1.10.jar
-    - commons-io-commons-io-2.8.0.jar
+    - commons-io-commons-io-2.14.0.jar
     - commons-lang-commons-lang-2.6.jar
     - commons-logging-commons-logging-1.1.1.jar
     - org.apache.commons-commons-collections4-4.4.jar
@@ -460,8 +460,8 @@ The Apache Software License, Version 2.0
   * zt-zip
     - org.zeroturnaround-zt-zip-1.17.jar
   * Apache Avro
-    - org.apache.avro-avro-1.11.3.jar
-    - org.apache.avro-avro-protobuf-1.11.3.jar
+    - org.apache.avro-avro-1.11.4.jar
+    - org.apache.avro-avro-protobuf-1.11.4.jar
   * Apache Curator
     - org.apache.curator-curator-client-5.1.0.jar
     - org.apache.curator-curator-framework-5.1.0.jar
@@ -565,8 +565,8 @@ MIT License
     - com.auth0-jwks-rsa-0.22.0.jar
 Protocol Buffers License
  * Protocol Buffers
-   - com.google.protobuf-protobuf-java-3.22.3.jar -- ../licenses/LICENSE-protobuf.txt
-   - com.google.protobuf-protobuf-java-util-3.22.3.jar -- ../licenses/LICENSE-protobuf.txt
+   - com.google.protobuf-protobuf-java-3.25.5.jar -- ../licenses/LICENSE-protobuf.txt
+   - com.google.protobuf-protobuf-java-util-3.25.5.jar -- ../licenses/LICENSE-protobuf.txt
 
 CDDL-1.1 -- ../licenses/LICENSE-CDDL-1.1.txt
  * Java Annotations API
