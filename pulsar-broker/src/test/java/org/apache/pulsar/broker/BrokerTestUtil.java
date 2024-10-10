@@ -21,10 +21,15 @@ package org.apache.pulsar.broker;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
@@ -36,6 +41,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
+import lombok.SneakyThrows;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
@@ -45,7 +52,6 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
-
 /**
  * Holds util methods used in test.
  */
@@ -136,6 +142,77 @@ public class BrokerTestUtil {
     }
 
     /**
+     * Logs the topic stats and internal stats for the given topic
+     * @param logger logger to use
+     * @param baseUrl Pulsar service URL
+     * @param topic topic name
+     */
+    public static void logTopicStats(Logger logger, String baseUrl, String topic) {
+        logTopicStats(logger, baseUrl, "public", "default", topic);
+    }
+
+    /**
+     * Logs the topic stats and internal stats for the given topic
+     * @param logger logger to use
+     * @param baseUrl Pulsar service URL
+     * @param tenant tenant name
+     * @param namespace namespace name
+     * @param topic topic name
+     */
+    public static void logTopicStats(Logger logger, String baseUrl, String tenant, String namespace, String topic) {
+        String topicStatsUri =
+                String.format("%s/admin/v2/persistent/%s/%s/%s/stats", baseUrl, tenant, namespace, topic);
+        logger.info("[{}] stats: {}", topic, jsonPrettyPrint(getJsonResourceAsString(topicStatsUri)));
+        String topicStatsInternalUri =
+                String.format("%s/admin/v2/persistent/%s/%s/%s/internalStats", baseUrl, tenant, namespace, topic);
+        logger.info("[{}] internalStats: {}", topic, jsonPrettyPrint(getJsonResourceAsString(topicStatsInternalUri)));
+    }
+
+    /**
+     * Pretty print the given JSON string
+     * @param jsonString JSON string to pretty print
+     * @return pretty printed JSON string
+     */
+    public static String jsonPrettyPrint(String jsonString) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Object json = mapper.readValue(jsonString, Object.class);
+            ObjectWriter writer = mapper.writerWithDefaultPrettyPrinter();
+            return writer.writeValueAsString(json);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Get the resource as a string from the given URI
+     */
+    @SneakyThrows
+    public static String getJsonResourceAsString(String uri) {
+        URL url = new URL(uri);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept", "application/json");
+        try {
+            int responseCode = connection.getResponseCode();
+            if (responseCode == 200) {
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                    String inputLine;
+                    StringBuilder content = new StringBuilder();
+                    while ((inputLine = in.readLine()) != null) {
+                        content.append(inputLine);
+                    }
+                    return content.toString();
+                }
+            } else {
+                throw new IOException("Failed to get resource: " + uri + ", status: " + responseCode);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /**
      * Receive messages concurrently from multiple consumers and handles them using the provided message handler.
      * The message handler should return true if it wants to continue receiving more messages, false otherwise.
      *
@@ -207,14 +284,28 @@ public class BrokerTestUtil {
      * Receive messages concurrently from multiple consumers and handles them using the provided message handler.
      *
      * @param messageHandler the message handler
-     * @param quietTimeout the duration of quiet time after which the method will stop waiting for more messages
-     * @param consumers the consumers to receive messages from
-     * @param <T> the message value type
+     * @param quietTimeout   the duration of quiet time after which the method will stop waiting for more messages
+     * @param consumers      the consumers to receive messages from
+     * @param <T>            the message value type
+     */
+    public static <T> void receiveMessagesInThreads(BiFunction<Consumer<T>, Message<T>, Boolean> messageHandler,
+                                                    final Duration quietTimeout,
+                                                    Consumer<T>... consumers) {
+        receiveMessagesInThreads(messageHandler, quietTimeout, Arrays.stream(consumers).sequential());
+    }
+
+    /**
+     * Receive messages concurrently from multiple consumers and handles them using the provided message handler.
+     *
+     * @param messageHandler the message handler
+     * @param quietTimeout   the duration of quiet time after which the method will stop waiting for more messages
+     * @param consumers      the consumers to receive messages from
+     * @param <T>            the message value type
      */
     public static <T> void receiveMessagesInThreads(BiFunction<Consumer<T>, Message<T>, Boolean> messageHandler,
                                              final Duration quietTimeout,
-                                             Consumer<T>... consumers) {
-        FutureUtil.waitForAll(Arrays.stream(consumers).sequential().map(consumer -> {
+                                             Stream<Consumer<T>> consumers) {
+        FutureUtil.waitForAll(consumers.map(consumer -> {
             return CompletableFuture.runAsync(() -> {
                 try {
                     while (!Thread.currentThread().isInterrupted()) {

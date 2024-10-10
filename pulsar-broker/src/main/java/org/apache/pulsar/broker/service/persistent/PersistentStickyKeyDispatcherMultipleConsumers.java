@@ -50,6 +50,7 @@ import org.apache.pulsar.broker.service.ImpactedConsumersResult;
 import org.apache.pulsar.broker.service.PendingAcksMap;
 import org.apache.pulsar.broker.service.SendMessageInfo;
 import org.apache.pulsar.broker.service.StickyKeyConsumerSelector;
+import org.apache.pulsar.broker.service.StickyKeyDispatcher;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.client.api.Range;
 import org.apache.pulsar.common.api.proto.CommandSubscribe.SubType;
@@ -60,7 +61,8 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDispatcherMultipleConsumers {
+public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDispatcherMultipleConsumers implements
+        StickyKeyDispatcher {
 
     private final boolean allowOutOfOrderDelivery;
     private final StickyKeyConsumerSelector selector;
@@ -91,9 +93,9 @@ public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDi
         case AUTO_SPLIT:
             if (conf.isSubscriptionKeySharedUseConsistentHashing()) {
                 selector = new ConsistentHashingStickyKeyConsumerSelector(
-                        conf.getSubscriptionKeySharedConsistentHashingReplicaPoints());
+                        conf.getSubscriptionKeySharedConsistentHashingReplicaPoints(), drainingHashesRequired);
             } else {
-                selector = new HashRangeAutoSplitStickyKeyConsumerSelector();
+                selector = new HashRangeAutoSplitStickyKeyConsumerSelector(drainingHashesRequired);
             }
             break;
         case STICKY:
@@ -155,7 +157,8 @@ public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDi
                         drainingHashesTracker.endBatch();
                     }
                 });
-                registerDrainingHashes(consumer, impactedConsumers);
+                consumer.setDrainingHashesConsumerStatsUpdater(drainingHashesTracker::updateConsumerStats);
+                registerDrainingHashes(consumer, impactedConsumers.orElseThrow());
             }
         }).exceptionally(ex -> {
             internalRemoveConsumer(consumer);
@@ -184,13 +187,14 @@ public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDi
     @Override
     public synchronized void removeConsumer(Consumer consumer) throws BrokerServiceException {
         // The consumer must be removed from the selector before calling the superclass removeConsumer method.
-        ImpactedConsumersResult impactedConsumers = selector.removeConsumer(consumer);
+        Optional<ImpactedConsumersResult> impactedConsumers = selector.removeConsumer(consumer);
         super.removeConsumer(consumer);
         if (drainingHashesRequired) {
             // register draining hashes for the impacted consumers and ranges, in case a hash switched from one
             // consumer to another. This will handle the case where a hash gets switched from an existing
             // consumer to another existing consumer during removal.
-            registerDrainingHashes(consumer, impactedConsumers);
+            registerDrainingHashes(consumer, impactedConsumers.orElseThrow());
+            drainingHashesTracker.consumerRemoved(consumer);
         }
     }
 
@@ -347,8 +351,8 @@ public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDi
             return false;
         }
         if (log.isDebugEnabled()) {
-            log.debug("[{}] Adding {}:{} to pending acks for consumer {} with sticky key hash {}",
-                    getName(), ledgerId, entryId, consumer, stickyKeyHash);
+            log.debug("[{}] Adding {}:{} to pending acks for consumer id:{} name:{} with sticky key hash {}",
+                    getName(), ledgerId, entryId, consumer.consumerId(), consumer.consumerName(), stickyKeyHash);
         }
         // allow adding the message to pending acks and sending the message to the consumer
         return true;
