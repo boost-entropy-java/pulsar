@@ -18,17 +18,22 @@
  */
 package org.apache.pulsar.common.policies.data;
 
-/**
- * Tenant authorization operations.
- */
-public enum TenantOperation {
-    CREATE_NAMESPACE,
-    DELETE_NAMESPACE,
-    LIST_NAMESPACES,
+public enum BrokerOperation {
+    LIST_BROKERS,
+    GET_BROKER,
 
-    LIST_TENANTS,
-    GET_TENANT,
-    CREATE_TENANT,
-    UPDATE_TENANT,
-    DELETE_TENANT,
+    GET_LEADER_BROKER,
+    LIST_OWNED_NAMESPACES,
+
+    LIST_DYNAMIC_CONFIGURATIONS,
+    UPDATE_DYNAMIC_CONFIGURATION,
+    DELETE_DYNAMIC_CONFIGURATION,
+
+    LIST_RUNTIME_CONFIGURATIONS,
+
+    GET_INTERNAL_CONFIGURATION_DATA,
+
+    CHECK_BACKLOG_QUOTA,
+    HEALTH_CHECK,
+    SHUTDOWN
 }
