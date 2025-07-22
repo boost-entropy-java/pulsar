@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pulsar.common.naming;
 
 /**
- * Definition of constants.
+ * Microbenchmarks for delayed message delivery bucket implementation.
+ *
+ * <p>This package contains JMH benchmarks for testing the performance
+ * characteristics of the BucketDelayedDeliveryTracker, particularly
+ * focusing on thread safety improvements with StampedLock optimistic reads.
  */
-public class Constants {
-
-    public static final String GLOBAL_CLUSTER = "global";
-
-    public static final String WEBSOCKET_DUMMY_ORIGINAL_PRINCIPLE = "__websocket_dummy_original_principle";
-
-    private Constants() {}
-}
+package org.apache.pulsar.broker.delayed.bucket;
