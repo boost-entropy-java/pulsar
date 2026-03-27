@@ -18,7 +18,7 @@
 # under the License.
 #
 
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd )"
-cd $ROOT_DIR
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOP_LEVEL_DIR="$(dirname "$SCRIPT_DIR")"
 
-./gradlew -Pdocker :docker:pulsar-docker-image:dockerBuild
+grep "^pulsar " "$TOP_LEVEL_DIR/gradle/libs.versions.toml" | sed 's/.*= *"//' | sed 's/"//'
