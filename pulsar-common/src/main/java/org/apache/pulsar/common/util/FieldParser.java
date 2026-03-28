@@ -246,7 +246,7 @@ public final class FieldParser {
         WRAPPER_TYPES.put(boolean.class, Boolean.class);
     }
 
-    /***** --- Converters --- ****/
+    // --- Converters ---
 
     /**
      * Converts String to Integer.
