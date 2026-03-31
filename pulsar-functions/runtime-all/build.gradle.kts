@@ -45,6 +45,17 @@ tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJ
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
 }
 
+// Consumable configuration exposing the shadow jar for cross-project dependencies.
+// Unlike pulsar.shadow-conventions (which replaces runtimeElements), this project
+// uses the Shadow plugin directly, so we create a dedicated configuration.
+val shadowJarElements by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+    outgoing {
+        artifact(tasks.named("shadowJar"))
+    }
+}
+
 tasks.withType<Test>().configureEach {
     dependsOn(tasks.named("shadowJar"))
 }

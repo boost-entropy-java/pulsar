@@ -75,6 +75,20 @@ val distLib by configurations.creating {
     exclude(group = "org.codehaus.mojo", module = "animal-sniffer-annotations")
 }
 
+// Resolvable configurations for cross-project artifact dependencies.
+// Using configurations instead of direct task references (project().tasks.named())
+// ensures compatibility with Gradle's configure-on-demand feature.
+val runtimeAllShadowJar by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+    isTransitive = false
+}
+val apiExamplesJar by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
 dependencies {
     // Version constraints from the enforced platform (inherited via implementation,
     // which distLib extends) ensure consistent versions without manual resolutionStrategy.
@@ -174,6 +188,10 @@ dependencies {
 
     // pulsar-broker-common test jar is included in Maven server dist
     // but requires test-fixtures support in pulsar-broker-common; skipped for now
+
+    // Cross-project artifact dependencies for the server distribution tarball
+    runtimeAllShadowJar(project(path = ":pulsar-functions:pulsar-functions-runtime-all", configuration = "shadowJarElements"))
+    apiExamplesJar(project(":pulsar-functions:pulsar-functions-api-examples"))
 }
 
 val pulsarVersion = project.version.toString()
@@ -294,13 +312,13 @@ val serverDistTar by tasks.registering(Tar::class) {
     }
 
     // Java instance JAR (runtime-all fat jar, produced by Shadow plugin)
-    from(project(":pulsar-functions:pulsar-functions-runtime-all").tasks.named("shadowJar")) {
+    from(runtimeAllShadowJar) {
         into("${baseDir}/instances")
         rename(".*", "java-instance.jar")
     }
 
     // Java examples JAR
-    from(project(":pulsar-functions:pulsar-functions-api-examples").tasks.named("jar")) {
+    from(apiExamplesJar) {
         into("${baseDir}/examples")
         rename(".*", "api-examples.jar")
     }
@@ -316,6 +334,15 @@ val serverDistTar by tasks.registering(Tar::class) {
     // Create empty instances/deps directory
     into("${baseDir}/instances/deps") {
         from(files())
+    }
+}
+
+// Consumable configuration exposing the server distribution tarball
+val serverDistElements by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+    outgoing {
+        artifact(serverDistTar)
     }
 }
 

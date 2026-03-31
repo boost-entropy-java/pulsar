@@ -66,6 +66,15 @@ val offloaderDistTar by tasks.registering(Tar::class) {
     }
 }
 
+// Consumable configuration exposing the offloader distribution tarball
+val offloaderDistElements by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+    outgoing {
+        artifact(offloaderDistTar)
+    }
+}
+
 tasks.named("assemble") {
     dependsOn(offloaderDistTar)
 }
