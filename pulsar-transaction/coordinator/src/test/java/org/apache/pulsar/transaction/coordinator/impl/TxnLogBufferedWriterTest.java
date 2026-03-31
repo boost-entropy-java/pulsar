@@ -197,7 +197,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
          *   2. Store the param-context and param-position of callback function for verify.
          */
         // Create TxLogBufferedWriter.
-        TxnLogBufferedWriter<Integer> txnLogBufferedWriter =  new TxnLogBufferedWriter<>(
+        TxnLogBufferedWriter<Integer> txnLogBufferedWriter = new TxnLogBufferedWriter<>(
                     managedLedger, ((ManagedLedgerImpl) managedLedger).getExecutor(), transactionTimer,
                     dataSerializer, batchedWriteMaxRecords, batchedWriteMaxSize,
                     batchedWriteMaxDelayInMillis, batchEnabled, DISABLED_BUFFERED_WRITER_METRICS);
@@ -220,6 +220,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
                 positionsOfCallback.get(lightPosition).add(position);
             }
             @Override
+            @SuppressWarnings("unchecked")
             public void addFailed(ManagedLedgerException exception, Object ctx) {
                 if (contextArrayOfCallback.contains(Integer.valueOf(String.valueOf(ctx)))){
                     return;
@@ -398,6 +399,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
         List<Integer> dataArrayFlushedToBookie = Collections.synchronizedList(new ArrayList<>());
         Mockito.doAnswer(new Answer<Object>() {
             @Override
+            @SuppressWarnings("unchecked")
             public Object answer(InvocationOnMock invocation) throws Throwable {
                 ByteBuf byteBuf = (ByteBuf) invocation.getArguments()[0];
                 byteBuf.skipBytes(4);
@@ -460,6 +462,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
      * This method is used to verify the fix for the above problem. see: https://github.com/apache/pulsar/pull/16679.
      */
     @Test
+    @SuppressWarnings("unchecked")
     public void testPendingScheduleTriggerTaskCount() throws Exception {
         // Create components.
         ArrayBlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<>(65536 * 2);
@@ -590,6 +593,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
             return deserializeMergedData(new String(bytes, Charset.defaultCharset()));
         }
 
+        @SuppressWarnings("unchecked")
         public static List<Integer> deserializeMergedData(String json){
             try {
                 return objectMapper.readValue(json, ArrayList.class);
@@ -907,6 +911,7 @@ public class TxnLogBufferedWriterTest extends MockedBookKeeperTestCase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testFailWhenAddData() throws Exception {
         int batchedWriteMaxSize = 1024;
         @SuppressWarnings("rawtypes")

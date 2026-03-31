@@ -3901,12 +3901,13 @@ public class ManagedCursorTest extends MockedBookKeeperTestCase {
                         .setMarkDeleteLedgerId(markDeleteLedgerId).setMarkDeleteEntryId(markDeleteEntryId)
                         .setLastActive(0L);
                 Stat stat = mock(Stat.class);
+                @SuppressWarnings("unchecked")
                 MetaStoreCallback<ManagedCursorInfo> callback = (MetaStoreCallback<ManagedCursorInfo>) invocation
                         .getArguments()[2];
                 callback.operationComplete(info, stat);
                 return null;
             }
-        }).when(mockMetaStore).asyncGetCursorInfo(eq(mlName), eq(cursorName), any(MetaStoreCallback.class));
+        }).when(mockMetaStore).asyncGetCursorInfo(eq(mlName), eq(cursorName), any());
 
         ManagedLedgerImpl ml = mock(ManagedLedgerImpl.class);
         when(ml.getName()).thenReturn(mlName);
@@ -4666,8 +4667,10 @@ public class ManagedCursorTest extends MockedBookKeeperTestCase {
         Field field = ManagedLedgerImpl.class.getDeclaredField("ledgers");
         field.setAccessible(true);
 
-        ((ConcurrentSkipListMap<Long, ManagedLedgerInfo.LedgerInfo>) field.get(ledger))
-                .remove(position.getLedgerId());
+        @SuppressWarnings("unchecked")
+        ConcurrentSkipListMap<Long, ManagedLedgerInfo.LedgerInfo> ledgers =
+                (ConcurrentSkipListMap<Long, ManagedLedgerInfo.LedgerInfo>) field.get(ledger);
+        ledgers.remove(position.getLedgerId());
         field = ManagedCursorImpl.class.getDeclaredField("markDeletePosition");
         field.setAccessible(true);
         field.set(managedCursor, PositionFactory.create(position1.getLedgerId(), -1));
@@ -5805,7 +5808,7 @@ public class ManagedCursorTest extends MockedBookKeeperTestCase {
 
                         @Override
                         public Iterator<org.apache.bookkeeper.client.api.LedgerEntry> iterator() {
-                            return EmptyIterator.INSTANCE;
+                            return EmptyIterator.emptyIterator();
                         }
 
                         @Override
@@ -6026,9 +6029,11 @@ public class ManagedCursorTest extends MockedBookKeeperTestCase {
         assertEquals(properties.get(propertyKey), lastIndex - 1);
     }
 
+    @SuppressWarnings("try")
     class TestPulsarMockBookKeeper extends PulsarMockBookKeeper {
         Map<Long, Integer> ledgerErrors = new HashMap<>();
 
+        @SuppressWarnings("try")
         public TestPulsarMockBookKeeper(OrderedExecutor orderedExecutor) throws Exception {
             super(orderedExecutor);
         }

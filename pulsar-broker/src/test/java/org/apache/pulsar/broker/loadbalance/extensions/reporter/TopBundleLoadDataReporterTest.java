@@ -70,6 +70,7 @@ public class TopBundleLoadDataReporterTest {
     String broker = "broker-1";
 
     @BeforeMethod
+    @SuppressWarnings("unchecked")
     void setup() throws MetadataStoreException {
         config = new ServiceConfiguration();
         config.setLoadBalancerDebugModeEnabled(true);
@@ -106,12 +107,14 @@ public class TopBundleLoadDataReporterTest {
         doReturn(bundleStats).when(brokerService).getBundleStats();
     }
 
+    @SuppressWarnings("unchecked")
     public void testZeroUpdatedAt() {
         doReturn(0L).when(pulsarStats).getUpdatedAt();
         var target = new TopBundleLoadDataReporter(pulsar, "", store);
         assertNull(target.generateLoadData());
     }
 
+    @SuppressWarnings("unchecked")
     public void testGenerateLoadData() throws IllegalAccessException {
         doReturn(1L).when(pulsarStats).getUpdatedAt();
         config.setLoadBalancerMaxNumberOfBundlesInBundleLoadReport(2);
@@ -140,6 +143,7 @@ public class TopBundleLoadDataReporterTest {
     }
 
 
+    @SuppressWarnings("unchecked")
     public void testReportForce()  {
         var target = new TopBundleLoadDataReporter(pulsar, broker, store);
         target.reportAsync(false);
@@ -149,6 +153,7 @@ public class TopBundleLoadDataReporterTest {
 
     }
 
+    @SuppressWarnings("unchecked")
     public void testReport(){
         pulsar.getConfiguration().setLoadBalancerMaxNumberOfBundlesInBundleLoadReport(1);
         var target = new TopBundleLoadDataReporter(pulsar, broker, store);
@@ -160,6 +165,7 @@ public class TopBundleLoadDataReporterTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testTombstone() throws IllegalAccessException {
 
         var target = spy(new TopBundleLoadDataReporter(pulsar, broker, store));

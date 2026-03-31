@@ -2710,6 +2710,7 @@ public class PulsarAdminToolTest {
         }
     }
 
+    @SuppressWarnings("try")
     private static String runCustomCommand(String[] args) throws Exception {
         File narFile = new File(PulsarAdminTool.class.getClassLoader()
                 .getResource("cliextensions/customCommands-nar.nar").getFile());

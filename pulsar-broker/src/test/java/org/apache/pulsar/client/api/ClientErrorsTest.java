@@ -841,6 +841,7 @@ public class ClientErrorsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testCommandErrorMessageIsNull() throws Exception {
         @Cleanup
         PulsarClient client = PulsarClient.builder().serviceUrl(mockBrokerService.getBrokerAddress()).build();

@@ -643,7 +643,7 @@ public class ServiceUnitStateCompactionTest extends MockedPulsarServiceBaseTest 
         pulsar2.close();
 
     }
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
 
     @Test
     public void testSlowReceiveTableviewAfterCompaction() throws Exception {

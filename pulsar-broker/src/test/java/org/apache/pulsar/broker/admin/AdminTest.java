@@ -230,7 +230,7 @@ public class AdminTest extends MockedPulsarServiceBaseTest {
      * (before https://github.com/apache/pulsar/pull/14384) while the Worker already uses the new one.
      * @throws Exception
      */
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
     @Test
     public void internalConfigurationRetroCompatibility() throws Exception {
         OldInternalConfigurationData oldDataModel = new OldInternalConfigurationData(
@@ -819,7 +819,7 @@ public class AdminTest extends MockedPulsarServiceBaseTest {
         }
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
     @Test
     public void persistentTopics() throws Exception {
 
@@ -943,7 +943,7 @@ public class AdminTest extends MockedPulsarServiceBaseTest {
                 false, 10);
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
     @Test
     public void test500Error() throws Exception {
         final String tenant = "prop-xyz";

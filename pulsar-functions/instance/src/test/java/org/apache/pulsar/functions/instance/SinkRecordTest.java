@@ -29,7 +29,7 @@ import org.testng.annotations.Test;
 public class SinkRecordTest {
 
     @Test
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testCustomAck() {
 
         PulsarRecord pulsarRecord = Mockito.mock(PulsarRecord.class);

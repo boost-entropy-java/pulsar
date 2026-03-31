@@ -106,6 +106,7 @@ public class RackAwareTest extends BkEnsemblesTestBase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testPlacement() throws Exception {
         final String group = "default";
         for (int i = 0; i < NUM_BOOKIES; i++) {
@@ -149,6 +150,7 @@ public class RackAwareTest extends BkEnsemblesTestBase {
     }
 
     @Test(dataProvider = "forceMinRackNumProvider")
+    @SuppressWarnings("unchecked")
     public void testPlacementMinRackNumsPerWriteQuorum(boolean forceMinRackNums) throws Exception {
         cleanup();
         config = new ServiceConfiguration();
@@ -202,6 +204,7 @@ public class RackAwareTest extends BkEnsemblesTestBase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testRackUpdate() throws Exception {
         // 1. reset configurations for rack-aware
         cleanup();

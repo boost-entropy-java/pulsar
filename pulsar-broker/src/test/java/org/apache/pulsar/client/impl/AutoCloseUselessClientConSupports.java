@@ -140,6 +140,7 @@ public abstract class AutoCloseUselessClientConSupports extends MultiBrokerBaseT
     /**
      * Ensure producer and consumer works.
      */
+    @SuppressWarnings("unchecked")
     protected void ensureProducerAndConsumerWorks(Producer producer, Consumer consumer)
             throws PulsarClientException, ExecutionException, InterruptedException {
         String messageContent = UUID.randomUUID().toString();
@@ -152,6 +153,7 @@ public abstract class AutoCloseUselessClientConSupports extends MultiBrokerBaseT
     /**
      * Ensure producer and consumer works.
      */
+    @SuppressWarnings("unchecked")
     protected void ensureProducerAndConsumerWorks(Producer producer1, Producer producer2, Consumer consumer)
             throws PulsarClientException, ExecutionException, InterruptedException {
         String messageContent1 = UUID.randomUUID().toString();
@@ -174,6 +176,7 @@ public abstract class AutoCloseUselessClientConSupports extends MultiBrokerBaseT
     /**
      * Ensure transaction works.
      */
+    @SuppressWarnings("unchecked")
     protected void ensureTransactionWorks(PulsarClientImpl pulsarClient, Producer producer,
                                           Consumer consumer)
             throws PulsarClientException, ExecutionException, InterruptedException {
@@ -194,6 +197,7 @@ public abstract class AutoCloseUselessClientConSupports extends MultiBrokerBaseT
         consumer.acknowledge(messageTx);
     }
 
+    @SuppressWarnings("unchecked")
     protected void waitForTopicListWatcherStarted(Consumer<?> consumer) {
         Awaitility.await().untilAsserted(() -> {
             CompletableFuture<TopicListWatcher> completableFuture =

@@ -167,6 +167,7 @@ public class ConsumerImplTest {
     }
 
     @Test(invocationTimeOut = 1000)
+    @SuppressWarnings("unchecked")
     public void testNotifyPendingReceivedCallback_WorkNormally() {
         CompletableFuture<Message<byte[]>> receiveFuture = new CompletableFuture<>();
         @SuppressWarnings("rawtypes")
@@ -263,11 +264,11 @@ public class ConsumerImplTest {
 
     @Test
     public void testTopicPriorityLevel() {
-        ConsumerConfigurationData<Object> consumerConf = new ConsumerConfigurationData<>();
-        consumerConf.getTopicConfigurations().add(
+        ConsumerConfigurationData<byte[]> consumerConf2 = new ConsumerConfigurationData<>();
+        consumerConf2.getTopicConfigurations().add(
                 TopicConsumerConfigurationData.ofTopicName(topic, 1));
 
-        createConsumer(consumerConf);
+        createConsumer(consumerConf2);
 
         assertThat(consumer.getPriorityLevel()).isEqualTo(1);
     }

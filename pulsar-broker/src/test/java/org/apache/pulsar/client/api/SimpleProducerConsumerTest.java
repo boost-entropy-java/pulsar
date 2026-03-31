@@ -4424,6 +4424,7 @@ public class SimpleProducerConsumerTest extends ProducerConsumerBase {
     }
 
     @Test(timeOut = 100000)
+    @SuppressWarnings("unchecked")
     public void testNegativeIncomingMessageSize() throws Exception {
         final String topicName = "persistent://my-property/my-ns/testIncomingMessageSize-"
                 + UUID.randomUUID().toString();
@@ -4994,6 +4995,7 @@ public class SimpleProducerConsumerTest extends ProducerConsumerBase {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onSendAcknowledgement(Producer producer, Message message, MessageId msgId,
                                               Throwable exception) {
                 MessageImpl msgImpl = (MessageImpl) message;

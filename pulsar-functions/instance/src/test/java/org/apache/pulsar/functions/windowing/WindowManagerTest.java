@@ -147,6 +147,7 @@ public class WindowManagerTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testExpireThreshold() throws Exception {
         int threshold = WindowManager.EXPIRE_EVENTS_THRESHOLD;
         int windowLength = 5;
@@ -171,7 +172,7 @@ public class WindowManagerTest {
         assertEquals(seq(1, threshold - windowLength), listener.onExpiryEvents);
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void testEvictBeforeWatermarkForWatermarkEvictionPolicy(EvictionPolicy
                                                                             watermarkEvictionPolicy,
                                                                     int windowLength) throws

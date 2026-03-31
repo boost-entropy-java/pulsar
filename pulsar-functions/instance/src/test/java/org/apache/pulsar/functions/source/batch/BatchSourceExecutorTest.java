@@ -50,6 +50,7 @@ import org.testng.annotations.Test;
  */
 public class BatchSourceExecutorTest {
 
+  @SuppressWarnings("try")
   public static class TestBatchSource implements BatchSource<String> {
     @Getter
     public static int prepareCount;
@@ -82,6 +83,7 @@ public class BatchSourceExecutorTest {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Record<String> readNext() throws Exception {
       if (++recordCount % 5 == 0) {
         return null;
@@ -96,6 +98,7 @@ public class BatchSourceExecutorTest {
     }
   }
 
+  @SuppressWarnings("try")
   public static class TestBatchSourceFailDiscovery extends TestBatchSource {
     @Override
     public void discover(Consumer<byte[]> taskEater) throws Exception {
@@ -103,6 +106,7 @@ public class BatchSourceExecutorTest {
     }
   }
 
+  @SuppressWarnings("try")
   public static class TestBatchPushSource extends BatchPushSource<String> {
     @Getter
     public static int prepareCount;
@@ -130,6 +134,7 @@ public class BatchSourceExecutorTest {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void prepare(byte[] task) throws Exception {
       prepareCount++;
       for (int i = 0; i < 5; ++i) {
@@ -219,6 +224,7 @@ public class BatchSourceExecutorTest {
   }
 
   @BeforeMethod
+  @SuppressWarnings("unchecked")
   public void setUp() throws Exception {
     TestBatchSource.closeCount = 0;
     TestBatchSource.discoverCount = 0;

@@ -191,7 +191,7 @@ public class PulsarFunctionAdminTest {
             bkEnsemble = null;
         }
     }
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
 
     private PulsarWorkerService createPulsarFunctionWorker(ServiceConfiguration config) {
         workerConfig = new WorkerConfig();

@@ -74,6 +74,7 @@ public abstract class ProducerConsumerBase extends MockedPulsarServiceBaseTest {
         return "my-property/my-ns/topic-" + Long.toHexString(random.nextLong());
     }
 
+    @SuppressWarnings("unchecked")
     protected <T> ReceivedMessages<T> receiveAndAckMessages(
             BiFunction<MessageId, T, Boolean> ackPredicate,
             Consumer<T>...consumers) throws Exception {
@@ -91,6 +92,7 @@ public abstract class ProducerConsumerBase extends MockedPulsarServiceBaseTest {
         return receivedMessages;
     }
 
+    @SuppressWarnings("unchecked")
     protected <T> ReceivedMessages<T> ackAllMessages(Consumer<T>...consumers) throws Exception {
         return receiveAndAckMessages((msgId, msgV) -> true, consumers);
     }

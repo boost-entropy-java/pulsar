@@ -32,7 +32,7 @@ import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.client.api.ReaderBuilder;
-import org.apache.pulsar.functions.proto.Function.FunctionMetaData;
+import org.apache.pulsar.functions.proto.FunctionMetaData;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.AfterMethod;
@@ -73,13 +73,14 @@ public class FunctionMetaDataTopicTailerTest {
     @Test
     public void testUpdate() throws Exception {
 
-        FunctionMetaData request = FunctionMetaData.newBuilder().build();
+        FunctionMetaData request = new FunctionMetaData();
 
         Message msg = mock(Message.class);
         when(msg.getData()).thenReturn(request.toByteArray());
         CountDownLatch readLatch = new CountDownLatch(1);
         CountDownLatch processLatch = new CountDownLatch(1);
         when(reader.readNext(anyInt(), any(TimeUnit.class))).thenReturn(msg).then(new Answer<Message>() {
+            @SuppressWarnings("unchecked")
             public Message answer(InvocationOnMock invocation) {
                 try {
                     readLatch.countDown();
@@ -96,6 +97,6 @@ public class FunctionMetaDataTopicTailerTest {
         readLatch.await();
 
         verify(reader, times(2)).readNext(anyInt(), any(TimeUnit.class));
-        verify(fsm, times(1)).processMetaDataTopicMessage(any(Message.class));
+        verify(fsm, times(1)).processMetaDataTopicMessage(any());
     }
 }

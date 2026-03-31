@@ -1605,6 +1605,7 @@ public class DeadLetterTopicTest extends SharedPulsarBaseTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testCheckUnnecessaryGetPartitionedTopicMetadataWhenUseRetryAndDQL() {
         PulsarClientImpl client = mock(PulsarClientImpl.class);
         ClientConfigurationData clientConf = new ClientConfigurationData();

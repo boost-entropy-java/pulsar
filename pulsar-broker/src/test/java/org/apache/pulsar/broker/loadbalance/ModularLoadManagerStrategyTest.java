@@ -46,6 +46,7 @@ import org.testng.annotations.Test;
 @Test(groups = "broker")
 public class ModularLoadManagerStrategyTest {
 
+    @SuppressWarnings("unchecked")
     public void testAvgShedderWithPreassignedBroker() throws Exception {
         ModularLoadManagerStrategy strategy = new AvgShedder();
         Field field = AvgShedder.class.getDeclaredField("bundleBrokerMap");
@@ -62,6 +63,7 @@ public class ModularLoadManagerStrategyTest {
         assertEquals(bundleBrokerMap.get(bundleData), "2");
     }
 
+    @SuppressWarnings("unchecked")
     public void testAvgShedderWithoutPreassignedBroker() throws Exception {
         ModularLoadManagerStrategy strategy = new AvgShedder();
         Field field = AvgShedder.class.getDeclaredField("bundleBrokerMap");
@@ -284,6 +286,7 @@ public class ModularLoadManagerStrategyTest {
         strategy.selectBroker(brokerDataMap.keySet(), new BundleData(), loadData, conf);
         Field field = LeastResourceUsageWithWeight.class.getDeclaredField("brokerAvgResourceUsageWithWeight");
         field.setAccessible(true);
+        @SuppressWarnings("unchecked")
         Map<String, Double> map = (Map<String, Double>) field.get(strategy);
         assertEquals(map.size(), 3);
         strategy.onActiveBrokersChange(new HashSet<>());

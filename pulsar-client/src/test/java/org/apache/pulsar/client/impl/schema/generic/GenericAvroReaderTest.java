@@ -71,6 +71,7 @@ public class GenericAvroReaderTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testGenericAvroReaderByWriterSchema() {
         byte[] fooBytes = fooSchema.encode(foo);
 
@@ -82,6 +83,7 @@ public class GenericAvroReaderTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testGenericAvroReaderByReaderSchema() {
         byte[] fooV2Bytes = fooV2Schema.encode(fooV2);
 
@@ -94,6 +96,7 @@ public class GenericAvroReaderTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testOffsetSchema() {
         byte[] fooBytes = fooOffsetSchema.encode(foo);
         ByteBuf byteBuf = Unpooled.buffer();

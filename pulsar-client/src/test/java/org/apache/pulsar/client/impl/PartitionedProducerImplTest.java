@@ -78,13 +78,15 @@ public class PartitionedProducerImplTest {
         client = mock(PulsarClientImpl.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         when(client.getCnxPool()).thenReturn(connectionPool);
-        schema = mock(Schema.class);
+        @SuppressWarnings("unchecked")
+        Schema<byte[]> mockedSchema = mock(Schema.class);
+        schema = mockedSchema;
         producerInterceptors = mock(ProducerInterceptors.class);
         producerCreatedFuture = new CompletableFuture<>();
         ClientConfigurationData clientConfigurationData = mock(ClientConfigurationData.class);
         Timer timer = mock(Timer.class);
 
-        producerBuilderImpl = new ProducerBuilderImpl(client, Schema.BYTES);
+        producerBuilderImpl = new ProducerBuilderImpl<>(client, Schema.BYTES);
 
         when(client.instrumentProvider()).thenReturn(InstrumentProvider.NOOP);
         when(client.getConfiguration()).thenReturn(clientConfigurationData);
@@ -167,7 +169,7 @@ public class PartitionedProducerImplTest {
         assertNotEquals(actualHashList, expectedHashList);
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private MessageRouter getMessageRouter(ProducerConfigurationData producerConfigurationData)
             throws NoSuchFieldException, IllegalAccessException {
         PartitionedProducerImpl impl = new PartitionedProducerImpl(
@@ -190,6 +192,7 @@ public class PartitionedProducerImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testGetStats() throws Exception {
         String topicName = "test-stats";
         ClientConfigurationData conf = new ClientConfigurationData();
@@ -252,6 +255,7 @@ public class PartitionedProducerImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testGetNumOfPartitions() throws Exception {
         String topicName = "test-get-num-of-partitions";
         ClientConfigurationData conf = new ClientConfigurationData();
@@ -282,6 +286,7 @@ public class PartitionedProducerImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testMaxPendingQueueSize() throws Exception {
         String topicName = "test-max-pending-queue-size";
         ClientConfigurationData conf = new ClientConfigurationData();
@@ -321,6 +326,7 @@ public class PartitionedProducerImplTest {
 
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testOnTopicsExtended() throws Exception {
         String topicName = "test-on-topics-extended";
         ClientConfigurationData conf = new ClientConfigurationData();

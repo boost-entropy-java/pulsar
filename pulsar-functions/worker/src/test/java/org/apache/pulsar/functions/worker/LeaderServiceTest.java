@@ -63,6 +63,7 @@ public class LeaderServiceTest {
     private CompletableFuture<Void> readToTheEndAndExitFuture;
     private MembershipManager membershipManager;
 
+    @SuppressWarnings("unchecked")
     public LeaderServiceTest() {
         this.workerConfig = new WorkerConfig();
         workerConfig.setWorkerId("worker-1");
@@ -76,6 +77,7 @@ public class LeaderServiceTest {
     }
 
     @BeforeMethod
+    @SuppressWarnings("unchecked")
     public void setup() throws PulsarClientException {
         mockClient = mock(PulsarClientImpl.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);

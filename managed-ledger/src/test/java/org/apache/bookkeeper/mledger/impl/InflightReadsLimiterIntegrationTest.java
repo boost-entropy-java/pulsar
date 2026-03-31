@@ -116,6 +116,7 @@ public class InflightReadsLimiterIntegrationTest extends MockedBookKeeperTestCas
                 threadFactory.newThread(() -> {
                     try {
                         readCompleteSignal2.await();
+                        @SuppressWarnings("unchecked")
                         CompletableFuture<LedgerEntries> future =
                                 (CompletableFuture<LedgerEntries>) invocation.callRealMethod();
                         future.thenAccept(v -> {

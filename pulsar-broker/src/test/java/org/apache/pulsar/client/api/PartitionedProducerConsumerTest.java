@@ -912,7 +912,7 @@ public class PartitionedProducerConsumerTest extends SharedPulsarBaseTest {
     *
     * @throws Exception
     */
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "unchecked"})
     @Test
     public void testPartitionedTopicInterceptor() throws Exception {
         log.info("-- Starting {} test --", methodName);
@@ -944,6 +944,7 @@ public class PartitionedProducerConsumerTest extends SharedPulsarBaseTest {
                     }
 
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void onPartitionsChange(String topicName, int partitions) {
                         newProducerPartitions.addAndGet(partitions);
                     }

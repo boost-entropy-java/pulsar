@@ -232,6 +232,7 @@ public class AsyncDualMemoryLimiterUtilTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testAcquireDirectMemoryPermitsAndWriteAndFlushSuccess() throws Exception {
         ChannelHandlerContext ctx = mock(ChannelHandlerContext.class);
         ChannelFuture channelFuture = mock(ChannelFuture.class);
@@ -411,6 +412,7 @@ public class AsyncDualMemoryLimiterUtilTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testAcquireDirectMemoryPermitsAndWriteAndFlushMultipleConcurrent() throws Exception {
         ChannelHandlerContext ctx = mock(ChannelHandlerContext.class);
         ChannelFuture channelFuture = mock(ChannelFuture.class);
@@ -448,6 +450,7 @@ public class AsyncDualMemoryLimiterUtilTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testAcquireDirectMemoryPermitsAndWriteAndFlushReleasesOnWriteFailure() throws Exception {
         ChannelHandlerContext ctx = mock(ChannelHandlerContext.class);
         ChannelFuture channelFuture = mock(ChannelFuture.class);
@@ -485,6 +488,7 @@ public class AsyncDualMemoryLimiterUtilTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testWithPermitsFutureMultipleConcurrent() throws Exception {
         int numOperations = 20;
         @SuppressWarnings({"unchecked", "rawtypes"})

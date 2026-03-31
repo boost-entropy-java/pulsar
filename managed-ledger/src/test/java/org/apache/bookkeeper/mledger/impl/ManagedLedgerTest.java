@@ -3365,6 +3365,7 @@ public class ManagedLedgerTest extends MockedBookKeeperTestCase {
      * @throws Exception
      */
     @Test(timeOut = 20000)
+    @SuppressWarnings("try")
     public void testManagedLedgerWithAddEntryTimeOut() throws Exception {
         ManagedLedgerConfig config = initManagedLedgerConfig(new ManagedLedgerConfig()).setAddEntryTimeoutSeconds(1);
         ManagedLedgerImpl ledger = (ManagedLedgerImpl) factory.open("timeout_ledger_test", config);
@@ -3805,6 +3806,7 @@ public class ManagedLedgerTest extends MockedBookKeeperTestCase {
 
         Deque<CompletableFuture<Void>> futures = new ConcurrentLinkedDeque<>();
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             CompletableFuture<Void> result = (CompletableFuture<Void>) invocation.callRealMethod();
             futures.offer(result);
             return result;
@@ -4274,8 +4276,8 @@ public class ManagedLedgerTest extends MockedBookKeeperTestCase {
 
         CompletableFuture<Void> offloadFuture = new CompletableFuture<>();
         offloadFuture.complete(null);
-        Mockito.when(ledgerOffloader.offload(any(ReadHandle.class), any(UUID.class),
-                any(Map.class))).thenReturn(offloadFuture);
+        doReturn(offloadFuture).when(ledgerOffloader).offload(any(ReadHandle.class), any(UUID.class),
+                any());
 
         final ManagedLedgerImpl ledgerInit = (ManagedLedgerImpl) factory.open("test-offload-task-close", config);
         final ManagedLedgerImpl ledger = spy(ledgerInit);

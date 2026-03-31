@@ -287,6 +287,7 @@ public class ProxyTest extends MockedPulsarServiceBaseTest {
     }
 
     @Test
+    @SuppressWarnings("try")
     public void testRegexSubscription() throws Exception {
         @Cleanup
         PulsarClient client = PulsarClient.builder().serviceUrl(proxyService.getServiceUrl())
@@ -398,6 +399,7 @@ public class ProxyTest extends MockedPulsarServiceBaseTest {
     }
 
     @Test
+    @SuppressWarnings("try")
     public void testGetSchema() throws Exception {
         @Cleanup
         PulsarClient client = PulsarClient.builder().serviceUrl(proxyService.getServiceUrl())

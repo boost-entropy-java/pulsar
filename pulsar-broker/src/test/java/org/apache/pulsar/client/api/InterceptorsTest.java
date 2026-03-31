@@ -159,6 +159,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onSendAcknowledgement(Producer<String> producer, Message<String> message,
                                               MessageId msgId, Throwable exception) {
                 throw new IllegalArgumentException();
@@ -190,6 +191,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onSendAcknowledgement(Producer<String> producer, Message<String> message,
                                               MessageId msgId, Throwable exception) {
                 throw new AbstractMethodError();
@@ -223,6 +225,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onSendAcknowledgement(Producer<String> producer, Message<String> message, MessageId msgId,
                                               Throwable exception) {
                 messageDataOnSendAcknowledgement.add(new String(message.getData()));
@@ -279,6 +282,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
                 throw new AbstractMethodError();
             }
@@ -355,6 +359,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }
@@ -400,6 +405,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
         consumer.acknowledge(received);
         consumer.close();
 
+        @SuppressWarnings("unchecked")
         final CompletableFuture<Message<String>> future = new CompletableFuture<>();
         consumer = pulsarClient.newConsumer(Schema.STRING)
                 .topic(topicName)
@@ -467,6 +473,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }
@@ -551,6 +558,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
         };
 
+        @SuppressWarnings("unchecked")
         final String topicName = newTopicName();
 
         if (partitions > 0) {
@@ -625,6 +633,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }
@@ -703,6 +712,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }
@@ -780,6 +790,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }
@@ -854,6 +865,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
                 Assert.assertTrue(latch.getCount() > 0);
                 messageIds.forEach(messageId -> latch.countDown());
@@ -923,6 +935,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onPartitionsChange(String topicName, int partitions) {
                 newPartition.set(partitions);
             }
@@ -1046,6 +1059,7 @@ public class InterceptorsTest extends SharedPulsarBaseTest {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void onAckTimeoutSend(Consumer<String> consumer, Set<MessageId> messageIds) {
 
             }

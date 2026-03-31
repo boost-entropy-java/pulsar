@@ -137,6 +137,7 @@ public class SegmentAbortedTxnProcessorTest extends TransactionTestBase {
         //3. Delete the ledgers and then verify the date.
         Field ledgersField = ManagedLedgerImpl.class.getDeclaredField("ledgers");
         ledgersField.setAccessible(true);
+        @SuppressWarnings("unchecked")
         NavigableMap<Long, ManagedLedgerInfo.LedgerInfo> ledgers =
                 (NavigableMap<Long, ManagedLedgerInfo.LedgerInfo>)
                         ledgersField.get(persistentTopic.getManagedLedger());
@@ -174,7 +175,9 @@ public class SegmentAbortedTxnProcessorTest extends TransactionTestBase {
                 .getDeclaredField("segmentIndex");
         unsealedSegmentField.setAccessible(true);
         indexField.setAccessible(true);
+        @SuppressWarnings("unchecked")
         LinkedList<TxnID> unsealedSegment = (LinkedList<TxnID>) unsealedSegmentField.get(processor);
+        @SuppressWarnings("unchecked")
         LinkedMap<Position, TxnID> indexes = (LinkedMap<Position, TxnID>) indexField.get(processor);
         assertEquals(unsealedSegment.size(), txnIdSize % SEGMENT_SIZE);
         assertEquals(indexes.size(), txnIdSize / SEGMENT_SIZE);
@@ -209,6 +212,7 @@ public class SegmentAbortedTxnProcessorTest extends TransactionTestBase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testClearSnapshotSegments() throws Exception {
         PersistentTopic persistentTopic = (PersistentTopic) pulsarService.getBrokerService()
                 .getTopic(PROCESSOR_TOPIC, false).get().get();
@@ -383,6 +387,7 @@ public class SegmentAbortedTxnProcessorTest extends TransactionTestBase {
         Field field = PersistentTopic.class.getDeclaredField("currentCompaction");
         field.setAccessible(true);
         snapshotTopic.triggerCompaction();
+        @SuppressWarnings("unchecked")
         CompletableFuture<Long> compactionFuture = (CompletableFuture<Long>) field.get(snapshotTopic);
         org.awaitility.Awaitility.await().untilAsserted(() -> assertTrue(compactionFuture.isDone()));
     }

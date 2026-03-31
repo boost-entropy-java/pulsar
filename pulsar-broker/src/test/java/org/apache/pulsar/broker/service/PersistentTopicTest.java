@@ -262,6 +262,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testCreateTopic() {
         final ManagedLedger ledgerMock = mock(ManagedLedger.class);
         doReturn(new ManagedLedgerConfig()).when(ledgerMock).getConfig();
@@ -290,6 +291,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testCreateTopicMLFailure() {
         final String jinxedTopicName = "persistent://prop/ns-abc/topic3";
         doAnswer(invocationOnMock -> {
@@ -789,6 +791,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
         assertTrue(sub.getDispatcher().isClosed());
     }
 
+    @SuppressWarnings("unchecked")
     private void testMaxConsumersShared() throws Exception {
         PersistentTopic topic = new PersistentTopic(successTopicName, ledgerMock, brokerService);
         topic.initialize().join();
@@ -880,6 +883,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
         testMaxConsumersShared();
     }
 
+    @SuppressWarnings("unchecked")
     private void testMaxConsumersFailover() throws Exception {
 
         PersistentTopic topic = new PersistentTopic(successTopicName, ledgerMock, brokerService);
@@ -990,6 +994,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testMaxSameAddressConsumers() throws Exception {
         // set max clients
         pulsarTestContext.getConfig().setMaxSameAddressConsumersPerTopic(2);
@@ -1690,6 +1695,7 @@ public class PersistentTopicTest extends MockedBookKeeperTestCase {
      * @throws Exception
      */
     @Test
+    @SuppressWarnings("unchecked")
     public void testAtomicReplicationRemoval() throws Exception {
         final String globalTopicName = "persistent://prop/ns-abc/successTopic";
         String localCluster = "local";
