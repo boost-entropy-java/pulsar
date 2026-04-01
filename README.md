@@ -168,7 +168,8 @@ Docker image Java runtime: 17
 
     | Pulsar Version   |                                   JDK Version                                    |
     |------------------|:--------------------------------------------------------------------------------:|
-    | master and 4.0+  | [JDK 21](https://adoptium.net/en-GB/temurin/releases?version=21&os=any&arch=any) | 
+    | master           | [JDK 21](https://adoptium.net/en-GB/temurin/releases?version=21&os=any&arch=any) or [JDK 25](https://adoptium.net/en-GB/temurin/releases?version=25&os=any&arch=any) |
+    | 4.0+             | [JDK 21](https://adoptium.net/en-GB/temurin/releases?version=21&os=any&arch=any) |
     | 2.11 +           | [JDK 17](https://adoptium.net/en-GB/temurin/releases?version=17&os=any&arch=any) |
     | 2.8 / 2.9 / 2.10 | [JDK 11](https://adoptium.net/en-GB/temurin/releases?version=11&os=any&arch=any) |
     | 2.7 -            |  [JDK 8](https://adoptium.net/en-GB/temurin/releases?version=8&os=any&arch=any)  |
@@ -181,6 +182,8 @@ There is also a guide for [setting up the tooling for building Pulsar](https://p
 >
 > This project includes a [Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html) so no separate Gradle installation is needed.
 > Use `./gradlew` on Linux/macOS and `gradlew.bat` on Windows.
+>
+> For a better developer experience, install [Gradle command-line completion](https://docs.gradle.org/current/userguide/command_line_interface.html#sec:command_line_completion) ([gradle-completion installation](https://github.com/gradle/gradle-completion?tab=readme-ov-file#gradle-completion)) for bash and zsh shells.
 
 ### Build
 

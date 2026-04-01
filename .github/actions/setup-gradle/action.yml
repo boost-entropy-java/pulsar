@@ -39,13 +39,24 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set Develocity Project ID and configure custom settings
+      if: ${{ inputs.develocity-access-key != '' && inputs.build-scan-publish == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p ~/.gradle
+        touch ~/.gradle/gradle.properties
+        grep -q 'systemProp.develocity.projectId=' ~/.gradle/gradle.properties || echo systemProp.develocity.projectId=pulsar >> ~/.gradle/gradle.properties
+        grep -q 'systemProp.scan.uploadInBackground=' ~/.gradle/gradle.properties || echo systemProp.scan.uploadInBackground=false >> ~/.gradle/gradle.properties
+
     - name: Setup Gradle with Develocity
       if: ${{ inputs.develocity-access-key != '' && inputs.build-scan-publish == 'true' }}
       uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f
       with:
         develocity-injection-enabled: true
         develocity-url: https://develocity.apache.org
+        # expected format is develocity.apache.org:<access-key>
         develocity-access-key: ${{ inputs.develocity-access-key }}
+        build-scan-publish: ${{ inputs.build-scan-publish }}
         cache-read-only: ${{ inputs.cache-read-only }}
         add-job-summary: ${{ inputs.add-job-summary }}
 

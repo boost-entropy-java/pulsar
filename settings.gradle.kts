@@ -36,9 +36,26 @@ dependencyResolutionManagement {
             }
         }
     }
+
+    // override docker-jdk version with -PdockerJavaVersion=21|25
+    val overrideDockerJavaVersion = settings.providers.gradleProperty("dockerJavaVersion")
+    if (overrideDockerJavaVersion.isPresent) {
+        versionCatalogs {
+            create("libs") {
+                version("docker-jdk", overrideDockerJavaVersion.get())
+            }
+        }
+    }
 }
 
 rootProject.name = "pulsar"
+
+// Running this build requires Java 21 or 25. Version check can be skipped with -PskipJavaVersionCheck parameter.
+val javaVersion = providers.provider { JavaVersion.current() }
+val statisfiedJavaVersion = javaVersion.map { it == JavaVersion.VERSION_21 || it == JavaVersion.VERSION_25 }
+require(providers.gradleProperty("skipJavaVersionCheck").isPresent || statisfiedJavaVersion.get()) {
+    "This build requires Java 21 or 25, but is running on Java ${javaVersion.get()}. Pass -PskipJavaVersionCheck to skip this check."
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Core modules
