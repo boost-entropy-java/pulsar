@@ -167,7 +167,7 @@ lz4java = "1.10.3"
 spring = "6.2.12"
 kubernetesclient = "23.0.0"
 aws-sdk = "1.12.788"
-hadoop3 = "3.4.3"
+hadoop3 = "3.5.0"
 jclouds = "2.6.0"
 # Shading
 shadow = "9.4.1"
