@@ -35,11 +35,21 @@ function ci_list_functions() {
 # prints thread dumps for all running JVMs
 # used in CI when a job gets cancelled because of a job timeout
 function ci_print_thread_dumps() {
+  local dump_dir=""
+  if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+    dump_dir="${GITHUB_WORKSPACE}/build/threaddumps"
+    mkdir -p "$dump_dir"
+  fi
   for java_pid in $(jps -q -J-XX:+PerfDisableSharedMem); do
     echo "----------------------- pid $java_pid -----------------------"
     cat /proc/$java_pid/cmdline | xargs -0 echo
     jcmd $java_pid Thread.print -l
     jcmd $java_pid GC.heap_info
+    if [ -n "$dump_dir" ]; then
+      cat /proc/$java_pid/cmdline | xargs -0 echo > "$dump_dir/cmdline_$java_pid.txt"
+      jcmd $java_pid Thread.print -l > "$dump_dir/threaddump_$java_pid.txt"
+      jcmd $java_pid GC.heap_info > "$dump_dir/heapinfo_$java_pid.txt"
+    fi
   done
   return 0
 }
@@ -107,6 +117,55 @@ function ci_move_test_reports() {
           done
       )
     fi
+  )
+}
+
+# generates a top-level index.html that links to each module's HTML test report
+function ci_generate_test_report_index() {
+  (
+    if [ -n "${GITHUB_WORKSPACE}" ]; then
+      cd "${GITHUB_WORKSPACE}"
+    fi
+    local index_file="test-reports/index.html"
+    mkdir -p "$(dirname "$index_file")"
+    local found_reports=()
+    while IFS= read -r -d '' report; do
+      found_reports+=("$report")
+    done < <(find . -path '*/build/reports/tests/test/index.html' -not -path './build/*' -print0 | sort -z)
+    if [ ${#found_reports[@]} -eq 0 ]; then
+      echo "No HTML test reports found."
+      return 0
+    fi
+    cat > "$index_file" <<'HEADER'
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Test Reports Index</title>
+<style>
+body { font-family: sans-serif; margin: 2em; }
+a { text-decoration: none; color: #0366d6; }
+a:hover { text-decoration: underline; }
+li { margin: 0.3em 0; }
+</style>
+</head>
+<body>
+<h1>Test Reports</h1>
+<ul>
+HEADER
+    for report in "${found_reports[@]}"; do
+      # strip leading ./
+      local rel_path="${report#./}"
+      # extract module name (everything before /build/reports/tests/test/index.html)
+      local module_name="${rel_path%%/build/reports/tests/test/index.html}"
+      echo "  <li><a href=\"../${rel_path}\">${module_name}</a></li>" >> "$index_file"
+    done
+    cat >> "$index_file" <<'FOOTER'
+</ul>
+</body>
+</html>
+FOOTER
+    echo "Generated test report index at $index_file with ${#found_reports[@]} module(s)."
   )
 }
 
