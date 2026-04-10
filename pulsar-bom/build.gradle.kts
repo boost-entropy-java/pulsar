@@ -77,7 +77,6 @@ dependencies {
         api(project(":pulsar-client-tools"))
         api(project(":pulsar-client-tools-api"))
         api(project(":pulsar-opentelemetry"))
-        api(project(":structured-event-log"))
         api(project(":testmocks"))
 
         // Transaction
