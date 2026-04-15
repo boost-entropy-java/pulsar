@@ -381,11 +381,11 @@ The Apache Software License, Version 2.0
     - simpleclient_tracer_otel-0.16.0.jar
     - simpleclient_tracer_otel_agent-0.16.0.jar
  * Log4J
-    - log4j-api-2.25.3.jar
-    - log4j-core-2.25.3.jar
-    - log4j-layout-template-json-2.25.3.jar
-    - log4j-slf4j2-impl-2.25.3.jar
-    - log4j-web-2.25.3.jar
+    - log4j-api-2.25.4.jar
+    - log4j-core-2.25.4.jar
+    - log4j-layout-template-json-2.25.4.jar
+    - log4j-slf4j2-impl-2.25.4.jar
+    - log4j-web-2.25.4.jar
  * OpenTelemetry
     - opentelemetry-api-1.56.0.jar
     - opentelemetry-api-incubator-1.56.0-alpha.jar
@@ -404,18 +404,18 @@ The Apache Software License, Version 2.0
     - async-http-client-2.12.4.jar
     - async-http-client-netty-utils-2.12.4.jar
  * Jetty
-    - jetty-alpn-client-12.1.6.jar
-    - jetty-client-12.1.6.jar
-    - jetty-compression-common-12.1.6.jar
-    - jetty-compression-gzip-12.1.6.jar
-    - jetty-http-12.1.6.jar
-    - jetty-io-12.1.6.jar
-    - jetty-util-12.1.6.jar
-    - jetty-websocket-core-client-12.1.6.jar
-    - jetty-websocket-core-common-12.1.6.jar
-    - jetty-websocket-jetty-api-12.1.6.jar
-    - jetty-websocket-jetty-client-12.1.6.jar
-    - jetty-websocket-jetty-common-12.1.6.jar
+    - jetty-alpn-client-12.1.7.jar
+    - jetty-client-12.1.7.jar
+    - jetty-compression-common-12.1.7.jar
+    - jetty-compression-gzip-12.1.7.jar
+    - jetty-http-12.1.7.jar
+    - jetty-io-12.1.7.jar
+    - jetty-util-12.1.7.jar
+    - jetty-websocket-core-client-12.1.7.jar
+    - jetty-websocket-core-common-12.1.7.jar
+    - jetty-websocket-jetty-api-12.1.7.jar
+    - jetty-websocket-jetty-client-12.1.7.jar
+    - jetty-websocket-jetty-common-12.1.7.jar
  * SnakeYaml -- snakeyaml-2.0.jar
  * Google Error Prone Annotations - error_prone_annotations-2.45.0.jar
  * Javassist -- javassist-3.25.0-GA.jar
