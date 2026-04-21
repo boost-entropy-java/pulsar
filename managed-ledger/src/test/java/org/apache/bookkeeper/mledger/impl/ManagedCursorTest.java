@@ -42,6 +42,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Range;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -119,6 +121,7 @@ import org.apache.bookkeeper.mledger.proto.ManagedLedgerInfo;
 import org.apache.bookkeeper.mledger.proto.PositionInfo;
 import org.apache.bookkeeper.mledger.util.ManagedLedgerTestUtil;
 import org.apache.bookkeeper.mledger.util.ManagedLedgerUtils;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.test.MockedBookKeeperTestCase;
 import org.apache.commons.collections4.iterators.EmptyIterator;
 import org.apache.commons.lang3.mutable.MutableBoolean;
@@ -6030,6 +6033,147 @@ public class ManagedCursorTest extends MockedBookKeeperTestCase {
         Map<String, Long> properties = cursor.getProperties();
         assertEquals(properties.size(), 1);
         assertEquals(properties.get(propertyKey), lastIndex - 1);
+    }
+
+    @DataProvider(name = "rangesTruncationScenarios")
+    public static Object[][] rangesTruncationScenarios() {
+        // maxRanges, totalEntries, shouldTruncate.
+        return new Object[][] {
+                { 5, 16, true },   // 8 ack holes, above limit 5 → truncation
+                { 10, 6, false },  // 3 ack holes, limit 10 → no truncation
+                { 5, 6, false },   // 3 ack holes, limit 5 → no truncation
+        };
+    }
+
+    @Test(timeOut = 20000, dataProvider = "rangesTruncationScenarios")
+    public void testPersistUnackedRangesTruncatedCounter(int maxRanges, int totalEntries, boolean shouldTruncate)
+            throws Exception {
+        @Cleanup
+        InMemoryMetricReader metricReader = InMemoryMetricReader.create();
+        @Cleanup
+        var openTelemetry = AutoConfiguredOpenTelemetrySdk.builder()
+                .disableShutdownHook()
+                .addPropertiesSupplier(() -> Map.of("otel.metrics.exporter", "none",
+                        "otel.traces.exporter", "none",
+                        "otel.logs.exporter", "none"))
+                .addMeterProviderCustomizer((builder, __) -> builder.registerMetricReader(metricReader))
+                .build()
+                .getOpenTelemetrySdk();
+
+        @Cleanup("shutdown")
+        ManagedLedgerFactoryImpl otelFactory = new ManagedLedgerFactoryImpl(
+                metadataStore,
+                (policyConfig) -> CompletableFuture.completedFuture(bkc),
+                new ManagedLedgerFactoryConfig(), NullStatsLogger.INSTANCE, openTelemetry);
+
+        ManagedLedgerConfig config = new ManagedLedgerConfig();
+        config.setMaxUnackedRangesToPersist(maxRanges);
+        // Force persistence through the ledger path (not metadata store).
+        config.setMaxUnackedRangesToPersistInMetadataStore(0);
+
+        String ledgerName = "my-tenant/my-ns/persistent/test-persist-unacked-ranges-truncated-" + UUID.randomUUID();
+        ManagedLedgerImpl ledger = (ManagedLedgerImpl) otelFactory.open(ledgerName, config);
+        ManagedCursorImpl cursor = (ManagedCursorImpl) ledger.openCursor("c1");
+
+        List<Position> positions = new ArrayList<>();
+        for (int i = 0; i < totalEntries; i++) {
+            positions.add(ledger.addEntry(("entry-" + i).getBytes(Encoding)));
+        }
+        // Ack alternating positions to create ack holes in the cursor.
+        for (int i = 1; i < positions.size(); i += 2) {
+            cursor.delete(positions.get(i));
+        }
+
+        ledger.close();
+
+        long truncationCount = metricReader.collectAllMetrics().stream()
+                .filter(m -> OpenTelemetryManagedCursorStats.PERSIST_UNACKED_RANGES_TRUNCATED.equals(m.getName()))
+                .flatMap(m -> m.getLongSumData().getPoints().stream())
+                .mapToLong(point -> point.getValue())
+                .sum();
+
+        // Direction only: persist cadence during close() is not a stable contract.
+        if (shouldTruncate) {
+            assertTrue(truncationCount >= 1, "expected truncation, was " + truncationCount);
+
+            ManagedLedgerImpl reopened = (ManagedLedgerImpl) otelFactory.open(ledgerName, config);
+            ManagedCursorImpl recovered = (ManagedCursorImpl) reopened.openCursor("c1");
+            assertEquals(recovered.getIndividuallyDeletedMessagesSet().asRanges().size(), maxRanges,
+                    "persisted range count must equal maxRanges");
+        } else {
+            assertEquals(truncationCount, 0L, "expected no truncation, was " + truncationCount);
+        }
+    }
+
+    @DataProvider(name = "batchIndexesTruncationScenarios")
+    public static Object[][] batchIndexesTruncationScenarios() {
+        // maxBatchIndexes, totalEntries, shouldTruncate.
+        return new Object[][] {
+                { 5, 16, true },   // 16 batch entries, above limit 5 → truncation
+                { 10, 6, false },  // 6 batch entries, limit 10 → no truncation
+                { 5, 5, false },   // 5 batch entries at exact limit → no truncation
+        };
+    }
+
+    @Test(timeOut = 20000, dataProvider = "batchIndexesTruncationScenarios")
+    public void testPersistBatchDeletedIndexesTruncatedCounter(int maxBatchIndexes, int totalEntries,
+            boolean shouldTruncate) throws Exception {
+        @Cleanup
+        InMemoryMetricReader metricReader = InMemoryMetricReader.create();
+        @Cleanup
+        var openTelemetry = AutoConfiguredOpenTelemetrySdk.builder()
+                .disableShutdownHook()
+                .addPropertiesSupplier(() -> Map.of("otel.metrics.exporter", "none",
+                        "otel.traces.exporter", "none",
+                        "otel.logs.exporter", "none"))
+                .addMeterProviderCustomizer((builder, __) -> builder.registerMetricReader(metricReader))
+                .build()
+                .getOpenTelemetrySdk();
+
+        @Cleanup("shutdown")
+        ManagedLedgerFactoryImpl otelFactory = new ManagedLedgerFactoryImpl(
+                metadataStore,
+                (policyConfig) -> CompletableFuture.completedFuture(bkc),
+                new ManagedLedgerFactoryConfig(), NullStatsLogger.INSTANCE, openTelemetry);
+
+        ManagedLedgerConfig config = new ManagedLedgerConfig();
+        config.setMaxBatchDeletedIndexToPersist(maxBatchIndexes);
+        config.setDeletionAtBatchIndexLevelEnabled(true);
+        config.setMaxUnackedRangesToPersistInMetadataStore(0);
+
+        String ledgerName = "my-tenant/my-ns/persistent/test-persist-batch-deleted-indexes-truncated-"
+                + UUID.randomUUID();
+        ManagedLedgerImpl ledger = (ManagedLedgerImpl) otelFactory.open(ledgerName, config);
+        ManagedCursorImpl cursor = (ManagedCursorImpl) ledger.openCursor("c1");
+
+        List<Position> positions = new ArrayList<>();
+        for (int i = 0; i < totalEntries; i++) {
+            positions.add(ledger.addEntry(("entry-" + i).getBytes(Encoding)));
+        }
+        // Partial-ack each position so it lands in batchDeletedIndexes rather than individualDeletedMessages.
+        for (Position position : positions) {
+            BitSet ackSet = new BitSet(10);
+            ackSet.set(0, 10);
+            ackSet.clear(0);
+            cursor.delete(AckSetStateUtil.createPositionWithAckSet(
+                    position.getLedgerId(), position.getEntryId(), ackSet.toLongArray()));
+        }
+
+        ledger.close();
+
+        long truncationCount = metricReader.collectAllMetrics().stream()
+                .filter(m -> OpenTelemetryManagedCursorStats.PERSIST_BATCH_DELETED_INDEXES_TRUNCATED
+                        .equals(m.getName()))
+                .flatMap(m -> m.getLongSumData().getPoints().stream())
+                .mapToLong(point -> point.getValue())
+                .sum();
+
+        // Direction only: persist cadence during close() is not a stable contract.
+        if (shouldTruncate) {
+            assertTrue(truncationCount >= 1, "expected truncation, was " + truncationCount);
+        } else {
+            assertEquals(truncationCount, 0L, "expected no truncation, was " + truncationCount);
+        }
     }
 
     @SuppressWarnings("try")
