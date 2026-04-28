@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.pulsar.client.api.ProducerAccessMode;
 import org.apache.pulsar.client.api.v5.MessageBuilder;
 import org.apache.pulsar.client.api.v5.Producer;
 import org.apache.pulsar.client.api.v5.PulsarClientException;
@@ -102,8 +103,11 @@ final class ScalableTopicProducer<T> implements Producer<T>, DagWatchClient.Layo
 
     @Override
     public long lastSequenceId() {
-        // Aggregate: return the max across all segment producers
-        long max = -1;
+        // Reflect the configured initialSequenceId even before any segment producer has
+        // been created (segment producers are spun up lazily on first send), so a caller
+        // that sets initialSequenceId(N) and immediately reads lastSequenceId() sees N.
+        long max = producerConf.getInitialSequenceId() == null
+                ? -1L : producerConf.getInitialSequenceId();
         for (var producer : segmentProducers.values()) {
             max = Math.max(max, producer.getLastSequenceId());
         }
@@ -296,6 +300,29 @@ final class ScalableTopicProducer<T> implements Producer<T>, DagWatchClient.Layo
     @Override
     public void onLayoutChange(ClientSegmentLayout newLayout, ClientSegmentLayout oldLayout) {
         applyLayout(newLayout);
+        // After a layout update under an exclusive access mode, we want to claim any
+        // newly-introduced segments eagerly so the exclusivity guarantee covers the
+        // whole topic, not just segments hit by the next send. Best-effort: this runs
+        // off the DagWatchClient callback and any failure is logged; the next send to
+        // that segment will surface the error via the normal PulsarClientException
+        // path. (The initial-create path uses {@link #eagerAttachInitialAsync} for
+        // strict claim.)
+        if (requiresExclusiveAttach()) {
+            CompletableFuture.runAsync(() -> {
+                for (var seg : newLayout.activeSegments()) {
+                    if (segmentProducers.containsKey(seg.segmentId())) {
+                        continue;
+                    }
+                    try {
+                        getOrCreateSegmentProducer(seg.segmentId());
+                    } catch (PulsarClientException e) {
+                        log.warn().attr("segmentId", seg.segmentId())
+                                .exceptionMessage(e)
+                                .log("Eager exclusive attach failed; will retry on next send");
+                    }
+                }
+            }, client.v4Client().getInternalExecutorService());
+        }
     }
 
     private void applyLayout(ClientSegmentLayout layout) {
@@ -322,9 +349,38 @@ final class ScalableTopicProducer<T> implements Producer<T>, DagWatchClient.Layo
             }
         }
 
-        // New segment producers will be created lazily on first message
         log.info().attr("epoch", layout.epoch())
                 .attr("activeSegments", newSegmentIds).log("Layout applied");
+    }
+
+    /**
+     * Strict variant of the eager attach used at initial create time: surfaces any
+     * exclusivity failure as a {@link PulsarClientException} so {@code create()} fails
+     * up front instead of silently deferring the collision to first send.
+     */
+    CompletableFuture<Void> eagerAttachInitialAsync() {
+        if (!requiresExclusiveAttach()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.runAsync(() -> {
+            for (var seg : activeSegments) {
+                if (segmentProducers.containsKey(seg.segmentId())) {
+                    continue;
+                }
+                try {
+                    getOrCreateSegmentProducer(seg.segmentId());
+                } catch (PulsarClientException e) {
+                    throw new java.util.concurrent.CompletionException(e);
+                }
+            }
+        }, client.v4Client().getInternalExecutorService());
+    }
+
+    private boolean requiresExclusiveAttach() {
+        ProducerAccessMode mode = producerConf.getAccessMode();
+        return mode == ProducerAccessMode.Exclusive
+                || mode == ProducerAccessMode.ExclusiveWithFencing
+                || mode == ProducerAccessMode.WaitForExclusive;
     }
 
     // --- Internal ---
@@ -345,34 +401,50 @@ final class ScalableTopicProducer<T> implements Producer<T>, DagWatchClient.Layo
             return existing;
         }
 
-        return segmentProducers.computeIfAbsent(segmentId, id -> {
-            // Find the segment topic name
-            String segmentTopicName = null;
-            for (var seg : activeSegments) {
-                if (seg.segmentId() == id) {
-                    segmentTopicName = seg.segmentTopicName();
-                    break;
+        try {
+            return segmentProducers.computeIfAbsent(segmentId, id -> {
+                // Find the segment topic name
+                String segmentTopicName = null;
+                for (var seg : activeSegments) {
+                    if (seg.segmentId() == id) {
+                        segmentTopicName = seg.segmentTopicName();
+                        break;
+                    }
                 }
-            }
-            if (segmentTopicName == null) {
-                throw new RuntimeException("Segment " + id + " not found in active segments");
-            }
+                if (segmentTopicName == null) {
+                    throw new RuntimeException("Segment " + id + " not found in active segments");
+                }
 
-            try {
-                PulsarClientImpl v4Client = client.v4Client();
-                var segConf = new org.apache.pulsar.client.impl.conf.ProducerConfigurationData();
-                segConf.setTopicName(segmentTopicName);
-                segConf.setSendTimeoutMs(producerConf.getSendTimeoutMs());
-                segConf.setBlockIfQueueFull(producerConf.isBlockIfQueueFull());
-                if (producerConf.getProducerName() != null
-                        && !producerConf.getProducerName().isEmpty()) {
-                    segConf.setProducerName(producerConf.getProducerName() + "-seg-" + id);
+                try {
+                    PulsarClientImpl v4Client = client.v4Client();
+                    // Clone the user-facing producer config so per-segment producers inherit
+                    // every builder knob (compression, batching, chunking, encryption,
+                    // initialSequenceId, accessMode, properties, ...) and not just the few
+                    // fields explicitly carried over.
+                    var segConf = producerConf.clone();
+                    segConf.setTopicName(segmentTopicName);
+                    if (producerConf.getProducerName() != null
+                            && !producerConf.getProducerName().isEmpty()) {
+                        segConf.setProducerName(producerConf.getProducerName() + "-seg-" + id);
+                    }
+                    return v4Client.createSegmentProducerAsync(segConf, v4Schema)
+                            .get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-                return v4Client.createSegmentProducerAsync(segConf, v4Schema)
-                        .get();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            });
+        } catch (RuntimeException re) {
+            // computeIfAbsent can't throw checked exceptions; unwrap a v4 PulsarClientException
+            // and rethrow as the V5 type so callers see the contract they expect (and don't
+            // get a misleading bare RuntimeException for a producer-fenced / busy segment).
+            Throwable cause = re.getCause();
+            while (cause instanceof java.util.concurrent.ExecutionException && cause.getCause() != null) {
+                cause = cause.getCause();
             }
-        });
+            if (cause instanceof org.apache.pulsar.client.api.PulsarClientException v4Exc) {
+                throw new PulsarClientException(v4Exc.getMessage(), v4Exc);
+            }
+            throw re;
+        }
     }
 }

@@ -76,10 +76,17 @@ final class ProducerBuilderV5<T> implements ProducerBuilder<T> {
         DagWatchClient dagWatch = new DagWatchClient(client.v4Client(), topicName);
 
         return dagWatch.start()
-                .thenApply(initialLayout -> {
+                .thenCompose(initialLayout -> {
                     ScalableTopicProducer<T> producer = new ScalableTopicProducer<>(
                             client, v5Schema, conf, dagWatch, initialLayout);
-                    return (Producer<T>) producer;
+                    // For exclusive access modes, claim every active segment up front so
+                    // a collision surfaces here instead of being deferred to first send.
+                    return producer.eagerAttachInitialAsync()
+                            .thenApply(__ -> (Producer<T>) producer)
+                            .exceptionallyCompose(ex -> producer.closeAsync().handle((__, ___) -> {
+                                throw ex instanceof java.util.concurrent.CompletionException ce
+                                        ? ce : new java.util.concurrent.CompletionException(ex);
+                            }));
                 });
     }
 
@@ -97,7 +104,16 @@ final class ProducerBuilderV5<T> implements ProducerBuilder<T> {
 
     @Override
     public ProducerBuilderV5<T> accessMode(ProducerAccessMode accessMode) {
-        conf.setAccessMode(org.apache.pulsar.client.api.ProducerAccessMode.valueOf(accessMode.name()));
+        // V5 enum uses SCREAMING_SNAKE_CASE; v4 uses PascalCase, so a literal valueOf(name())
+        // would throw IllegalArgumentException. Map explicitly.
+        conf.setAccessMode(switch (accessMode) {
+            case SHARED -> org.apache.pulsar.client.api.ProducerAccessMode.Shared;
+            case EXCLUSIVE -> org.apache.pulsar.client.api.ProducerAccessMode.Exclusive;
+            case EXCLUSIVE_WITH_FENCING ->
+                    org.apache.pulsar.client.api.ProducerAccessMode.ExclusiveWithFencing;
+            case WAIT_FOR_EXCLUSIVE ->
+                    org.apache.pulsar.client.api.ProducerAccessMode.WaitForExclusive;
+        });
         return this;
     }
 
