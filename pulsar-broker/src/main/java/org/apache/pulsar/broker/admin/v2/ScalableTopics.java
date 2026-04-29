@@ -28,6 +28,7 @@ import java.net.URI;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.Encoded;
@@ -49,9 +50,12 @@ import org.apache.pulsar.broker.admin.AdminResource;
 import org.apache.pulsar.broker.resources.ScalableTopicMetadata;
 import org.apache.pulsar.broker.resources.ScalableTopicResources;
 import org.apache.pulsar.broker.service.scalable.ScalableTopicController;
+import org.apache.pulsar.broker.service.scalable.ScalableTopicService;
 import org.apache.pulsar.broker.web.RestException;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.policies.data.NamespaceOperation;
+import org.apache.pulsar.common.policies.data.TopicOperation;
 import org.apache.pulsar.common.scalable.SegmentInfo;
 import org.apache.pulsar.common.scalable.SegmentTopicName;
 import org.apache.pulsar.common.util.FutureUtil;
@@ -91,7 +95,8 @@ public class ScalableTopics extends AdminResource {
             @ApiParam(value = "Specify the namespace", required = true)
             @PathParam("namespace") String namespace) {
         validateNamespaceName(tenant, namespace);
-        resources().listScalableTopicsAsync(namespaceName)
+        validateNamespaceOperationAsync(namespaceName, NamespaceOperation.GET_TOPICS)
+                .thenCompose(__ -> resources().listScalableTopicsAsync(namespaceName))
                 .thenAccept(asyncResponse::resume)
                 .exceptionally(ex -> {
                     log.error().attr("clientAppId", clientAppId()).attr("namespace", namespaceName)
@@ -128,19 +133,19 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        if (numInitialSegments < 1) {
-            asyncResponse.resume(new RestException(Response.Status.fromStatusCode(412),
-                    "numInitialSegments must be >= 1"));
-            return;
-        }
-
-        Map<String, String> props = properties != null ? properties : Map.of();
-        ScalableTopicMetadata metadata = ScalableTopicController.createInitialMetadata(
-                numInitialSegments, props);
-
-        // Segment persistent topics are auto-created on demand when clients connect,
-        // so we only need to store the metadata here.
-        resources().createScalableTopicAsync(tn, metadata)
+        validateNamespaceOperationAsync(namespaceName, NamespaceOperation.CREATE_TOPIC)
+                .thenCompose(__ -> {
+                    if (numInitialSegments < 1) {
+                        throw new RestException(Response.Status.fromStatusCode(412),
+                                "numInitialSegments must be >= 1");
+                    }
+                    Map<String, String> props = properties != null ? properties : Map.of();
+                    ScalableTopicMetadata metadata = ScalableTopicController.createInitialMetadata(
+                            numInitialSegments, props);
+                    // Segment persistent topics are auto-created on demand when clients connect,
+                    // so we only need to store the metadata here.
+                    return resources().createScalableTopicAsync(tn, metadata);
+                })
                 .thenAccept(__ -> {
                     log.info().attr("clientAppId", clientAppId()).attr("topic", tn)
                             .attr("numInitialSegments", numInitialSegments)
@@ -182,7 +187,8 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        resources().getScalableTopicMetadataAsync(tn)
+        validateTopicOperationAsync(tn, TopicOperation.GET_METADATA)
+                .thenCompose(__ -> resources().getScalableTopicMetadataAsync(tn))
                 .thenAccept(optMd -> {
                     if (optMd.isEmpty()) {
                         asyncResponse.resume(new RestException(Response.Status.NOT_FOUND,
@@ -223,7 +229,8 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        resources().getScalableTopicMetadataAsync(tn)
+        validateNamespaceOperationAsync(namespaceName, NamespaceOperation.DELETE_TOPIC)
+                .thenCompose(__ -> resources().getScalableTopicMetadataAsync(tn))
                 .thenCompose(optMd -> {
                     if (optMd.isEmpty()) {
                         throw new RestException(Response.Status.NOT_FOUND,
@@ -268,14 +275,8 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        var scalableTopicService = pulsar().getBrokerService().getScalableTopicService();
-        if (scalableTopicService == null) {
-            asyncResponse.resume(new RestException(Response.Status.SERVICE_UNAVAILABLE,
-                    "Scalable topic service not available"));
-            return;
-        }
-
-        scalableTopicService.getStats(tn)
+        validateTopicOperationAsync(tn, TopicOperation.GET_STATS)
+                .thenCompose(__ -> withScalableTopicService(svc -> svc.getStats(tn)))
                 .thenAccept(asyncResponse::resume)
                 .exceptionally(ex -> {
                     log.error().attr("clientAppId", clientAppId()).attr("topic", tn)
@@ -313,15 +314,9 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        var scalableTopicService = pulsar().getBrokerService().getScalableTopicService();
-        if (scalableTopicService == null) {
-            asyncResponse.resume(new RestException(Response.Status.SERVICE_UNAVAILABLE,
-                    "Scalable topic service not available"));
-            return;
-        }
-
-        redirectToControllerLeaderIfNeeded(tn)
-                .thenCompose(__ -> scalableTopicService.createSubscription(tn, subscription, type))
+        validateTopicOperationAsync(tn, TopicOperation.SUBSCRIBE, subscription)
+                .thenCompose(__ -> onControllerLeader(tn,
+                        svc -> svc.createSubscription(tn, subscription, type)))
                 .thenAccept(__ -> {
                     log.info().attr("clientAppId", clientAppId())
                             .attr("subscription", subscription).attr("topic", tn)
@@ -359,15 +354,9 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        var scalableTopicService = pulsar().getBrokerService().getScalableTopicService();
-        if (scalableTopicService == null) {
-            asyncResponse.resume(new RestException(Response.Status.SERVICE_UNAVAILABLE,
-                    "Scalable topic service not available"));
-            return;
-        }
-
-        redirectToControllerLeaderIfNeeded(tn)
-                .thenCompose(__ -> scalableTopicService.deleteSubscription(tn, subscription))
+        validateTopicOperationAsync(tn, TopicOperation.UNSUBSCRIBE, subscription)
+                .thenCompose(__ -> onControllerLeader(tn,
+                        svc -> svc.deleteSubscription(tn, subscription)))
                 .thenAccept(__ -> {
                     log.info().attr("clientAppId", clientAppId())
                             .attr("subscription", subscription).attr("topic", tn)
@@ -406,15 +395,8 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        var scalableTopicService = pulsar().getBrokerService().getScalableTopicService();
-        if (scalableTopicService == null) {
-            asyncResponse.resume(new RestException(Response.Status.SERVICE_UNAVAILABLE,
-                    "Scalable topic service not available"));
-            return;
-        }
-
-        redirectToControllerLeaderIfNeeded(tn)
-                .thenCompose(__ -> scalableTopicService.splitSegment(tn, segmentId))
+        validateSuperUserAccessAsync()
+                .thenCompose(__ -> onControllerLeader(tn, svc -> svc.splitSegment(tn, segmentId)))
                 .thenAccept(__ -> {
                     log.info().attr("clientAppId", clientAppId())
                             .attr("segmentId", segmentId).attr("topic", tn)
@@ -453,15 +435,9 @@ public class ScalableTopics extends AdminResource {
         validateNamespaceName(tenant, namespace);
         TopicName tn = TopicName.get(TopicDomain.topic.value(), namespaceName, encodedTopic);
 
-        var scalableTopicService = pulsar().getBrokerService().getScalableTopicService();
-        if (scalableTopicService == null) {
-            asyncResponse.resume(new RestException(Response.Status.SERVICE_UNAVAILABLE,
-                    "Scalable topic service not available"));
-            return;
-        }
-
-        redirectToControllerLeaderIfNeeded(tn)
-                .thenCompose(__ -> scalableTopicService.mergeSegments(tn, segmentId1, segmentId2))
+        validateSuperUserAccessAsync()
+                .thenCompose(__ -> onControllerLeader(tn,
+                        svc -> svc.mergeSegments(tn, segmentId1, segmentId2)))
                 .thenAccept(__ -> {
                     log.info().attr("clientAppId", clientAppId())
                             .attr("segmentId1", segmentId1).attr("segmentId2", segmentId2)
@@ -479,6 +455,32 @@ public class ScalableTopics extends AdminResource {
     }
 
     // --- Internal helpers ---
+
+    /**
+     * Resolve the local scalable-topic service and pass it to {@code op}. Surfaces a 503
+     * RestException if the service is not available on this broker.
+     */
+    private <T> CompletableFuture<T> withScalableTopicService(
+            Function<ScalableTopicService, CompletableFuture<T>> op) {
+        ScalableTopicService svc = pulsar().getBrokerService().getScalableTopicService();
+        if (svc == null) {
+            return FutureUtil.failedFuture(new RestException(Response.Status.SERVICE_UNAVAILABLE,
+                    "Scalable topic service not available"));
+        }
+        return op.apply(svc);
+    }
+
+    /**
+     * Invoke {@code op} on the controller leader for {@code tn}. Combines the
+     * service-availability check with {@link #redirectToControllerLeaderIfNeeded(TopicName)}
+     * so that endpoints requiring the elected controller leader can express the operation
+     * as a single chained step.
+     */
+    private <T> CompletableFuture<T> onControllerLeader(TopicName tn,
+            Function<ScalableTopicService, CompletableFuture<T>> op) {
+        return withScalableTopicService(svc -> redirectToControllerLeaderIfNeeded(tn)
+                .thenCompose(__ -> op.apply(svc)));
+    }
 
     /**
      * If this broker is not the elected controller leader for {@code tn}, redirect the
