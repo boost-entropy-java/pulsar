@@ -106,6 +106,7 @@ import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.api.proto.ProtocolVersion;
 import org.apache.pulsar.common.api.proto.ScalableConsumerAssignment;
+import org.apache.pulsar.common.api.proto.ScalableConsumerType;
 import org.apache.pulsar.common.api.proto.ScalableTopicDAG;
 import org.apache.pulsar.common.api.proto.Schema;
 import org.apache.pulsar.common.api.proto.ServerError;
@@ -304,12 +305,14 @@ public class Commands {
         return cmd;
     }
 
-    public static ByteBuf newConnected(int clientProtocoVersion,  boolean supportsTopicWatchers) {
-        return newConnected(clientProtocoVersion, INVALID_MAX_MESSAGE_SIZE, supportsTopicWatchers);
+    public static ByteBuf newConnected(int clientProtocoVersion, boolean supportsTopicWatchers,
+                                       boolean supportsScalableTopics) {
+        return newConnected(clientProtocoVersion, INVALID_MAX_MESSAGE_SIZE, supportsTopicWatchers,
+                supportsScalableTopics);
     }
 
     public static BaseCommand newConnectedCommand(int clientProtocolVersion, int maxMessageSize,
-                                                  boolean supportsTopicWatchers) {
+                                                  boolean supportsTopicWatchers, boolean supportsScalableTopics) {
         BaseCommand cmd = localCmd(Type.CONNECTED);
         CommandConnected connected = cmd.setConnected()
                 .setServerVersion("Pulsar Server" + PulsarVersion.getVersion());
@@ -329,11 +332,14 @@ public class Commands {
         connected.setFeatureFlags().setSupportsGetPartitionedMetadataWithoutAutoCreation(true);
         connected.setFeatureFlags().setSupportsReplDedupByLidAndEid(true);
         connected.setFeatureFlags().setSupportsTopicWatcherReconcile(supportsTopicWatchers);
+        connected.setFeatureFlags().setSupportsScalableTopics(supportsScalableTopics);
         return cmd;
     }
 
-    public static ByteBuf newConnected(int clientProtocolVersion, int maxMessageSize,  boolean supportsTopicWatchers) {
-        return serializeWithSize(newConnectedCommand(clientProtocolVersion, maxMessageSize, supportsTopicWatchers));
+    public static ByteBuf newConnected(int clientProtocolVersion, int maxMessageSize, boolean supportsTopicWatchers,
+                                       boolean supportsScalableTopics) {
+        return serializeWithSize(newConnectedCommand(clientProtocolVersion, maxMessageSize, supportsTopicWatchers,
+                supportsScalableTopics));
     }
 
     public static ByteBuf newAuthChallenge(String authMethod, AuthData brokerData, int clientProtocolVersion) {
@@ -1706,6 +1712,26 @@ public class Commands {
                 .setSessionId(sessionId)
                 .setError(error)
                 .setMessage(message);
+        return serializeWithSize(cmd);
+    }
+
+    /**
+     * Client -> Broker: register as a scalable consumer (Stream or Checkpoint) and
+     * request the initial segment assignment. The broker leader persists the
+     * registration and replies with a {@link CommandScalableTopicSubscribeResponse}.
+     */
+    public static ByteBuf newScalableTopicSubscribe(long requestId, String topic,
+                                                     String subscription, String consumerName,
+                                                     long consumerId,
+                                                     ScalableConsumerType consumerType) {
+        BaseCommand cmd = localCmd(Type.SCALABLE_TOPIC_SUBSCRIBE);
+        cmd.setScalableTopicSubscribe()
+                .setRequestId(requestId)
+                .setTopic(topic)
+                .setSubscription(subscription)
+                .setConsumerName(consumerName)
+                .setConsumerId(consumerId)
+                .setConsumerType(consumerType);
         return serializeWithSize(cmd);
     }
 
