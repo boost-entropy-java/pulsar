@@ -19,6 +19,7 @@
 package org.apache.pulsar.broker.service.scalable;
 
 import io.github.merlimat.slog.Logger;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -157,12 +158,26 @@ public class ScalableTopicController {
     }
 
     private SubscriptionCoordinator createCoordinator(String subscription) {
+        // Defensive: PulsarService.getConfig() is null in some unit-test mocks. Fall
+        // back to the SubscriptionCoordinator's default grace period in that case.
+        var config = brokerService.getPulsar().getConfig();
+        if (config == null) {
+            return new SubscriptionCoordinator(
+                    subscription,
+                    topicName,
+                    currentLayout,
+                    resources,
+                    brokerService.getPulsar().getExecutor());
+        }
+        Duration gracePeriod = Duration.ofSeconds(
+                config.getScalableTopicConsumerSessionGracePeriodSeconds());
         return new SubscriptionCoordinator(
                 subscription,
                 topicName,
                 currentLayout,
                 resources,
-                brokerService.getPulsar().getExecutor());
+                brokerService.getPulsar().getExecutor(),
+                gracePeriod);
     }
 
     private CompletableFuture<Void> electLeader() {
