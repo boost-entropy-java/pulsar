@@ -957,9 +957,10 @@ message CommandGetSchemaResponse {
 }
 
 message CommandGetOrCreateSchema {
-    required uint64 request_id = 1;
-    required string topic      = 2;
-    required Schema schema     = 3;
+    required uint64 request_id      = 1;
+    required string topic           = 2;
+    required Schema schema          = 3;
+    optional string producerName    = 4;
 }
 
 message CommandGetOrCreateSchemaResponse {

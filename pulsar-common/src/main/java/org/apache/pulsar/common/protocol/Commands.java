@@ -1372,10 +1372,12 @@ public class Commands {
         return serializeWithSize(newGetSchemaResponseErrorCommand(requestId, error, errorMessage));
     }
 
-    public static ByteBuf newGetOrCreateSchema(long requestId, String topic, SchemaInfo schemaInfo) {
+    public static ByteBuf newGetOrCreateSchema(long requestId, String topic, String producerName,
+                                               SchemaInfo schemaInfo) {
         BaseCommand cmd = localCmd(Type.GET_OR_CREATE_SCHEMA);
         Schema schema = cmd.setGetOrCreateSchema()
                 .setRequestId(requestId)
+                .setProducerName(producerName)
                 .setTopic(topic)
                 .setSchema();
         convertSchema(schemaInfo, schema);
