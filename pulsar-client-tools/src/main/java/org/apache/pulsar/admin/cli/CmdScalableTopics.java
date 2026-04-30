@@ -34,14 +34,31 @@ public class CmdScalableTopics extends CmdBase {
         return getAdmin().scalableTopics();
     }
 
-    @Command(description = "Get the list of scalable topics under a namespace")
+    @Command(description = "Get the list of scalable topics under a namespace, optionally"
+            + " filtered to those whose properties contain a given key/value pair")
     private class ListCmd extends CliCommand {
         @Parameters(description = "tenant/namespace", arity = "1")
         private String namespace;
 
+        @Option(names = {"-p", "--property"},
+                description = "Filter to topics whose properties contain this key=value pair")
+        private String property;
+
         @Override
         void run() throws Exception {
-            print(scalableTopics().listScalableTopics(validateNamespace(namespace)));
+            String ns = validateNamespace(namespace);
+            if (property == null || property.isEmpty()) {
+                print(scalableTopics().listScalableTopics(ns));
+                return;
+            }
+            int eq = property.indexOf('=');
+            if (eq <= 0 || eq == property.length() - 1) {
+                throw new IllegalArgumentException(
+                        "--property must be in the form key=value, got: " + property);
+            }
+            String key = property.substring(0, eq);
+            String value = property.substring(eq + 1);
+            print(scalableTopics().listScalableTopicsByProperty(ns, key, value));
         }
     }
 

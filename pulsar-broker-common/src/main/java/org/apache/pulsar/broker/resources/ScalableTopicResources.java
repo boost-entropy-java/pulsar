@@ -18,7 +18,10 @@
  */
 package org.apache.pulsar.broker.resources;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -28,6 +31,7 @@ import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.util.Codec;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.apache.pulsar.metadata.api.MetadataCache;
 import org.apache.pulsar.metadata.api.MetadataStore;
 import org.apache.pulsar.metadata.api.MetadataStoreException;
@@ -54,6 +58,16 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
     private static final String SUBSCRIPTIONS_SEGMENT = "subscriptions";
     private static final String CONSUMERS_SEGMENT = "consumers";
 
+    /**
+     * Use the topic's {@code properties} map verbatim as the secondary-index entries.
+     * Each property {@code k -> v} is registered as the index named {@code k} with
+     * secondary key {@code v}; querying by that key/value pair via
+     * {@link MetadataStore#findByIndex} returns the record. Index names live in a
+     * per-record-type namespace, so there's no need to disambiguate them with a prefix.
+     */
+    private static final Function<ScalableTopicMetadata, Map<String, String>> PROPERTY_INDEX_EXTRACTOR =
+            metadata -> metadata.getProperties() != null ? metadata.getProperties() : Map.of();
+
     private final MetadataCache<SubscriptionMetadata> subscriptionCache;
     private final MetadataCache<ConsumerRegistration> consumerRegistrationCache;
 
@@ -64,7 +78,7 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
     }
 
     public CompletableFuture<Void> createScalableTopicAsync(TopicName tn, ScalableTopicMetadata metadata) {
-        return createAsync(topicPath(tn), metadata);
+        return getCache().create(topicPath(tn), metadata, PROPERTY_INDEX_EXTRACTOR);
     }
 
     public CompletableFuture<Optional<ScalableTopicMetadata>> getScalableTopicMetadataAsync(TopicName tn) {
@@ -82,7 +96,10 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
     public CompletableFuture<Void> updateScalableTopicAsync(TopicName tn,
                                                              Function<ScalableTopicMetadata,
                                                                      ScalableTopicMetadata> updateFunction) {
-        return setAsync(topicPath(tn), updateFunction);
+        // Refresh property indexes on every update — the modify function may add or remove
+        // properties and the underlying store needs to see the post-modification view.
+        return getCache().readModifyUpdate(topicPath(tn), updateFunction, PROPERTY_INDEX_EXTRACTOR)
+                .thenApply(__ -> null);
     }
 
     public CompletableFuture<Void> deleteScalableTopicAsync(TopicName tn) {
@@ -97,6 +114,41 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
         return getChildrenAsync(joinPath(SCALABLE_TOPIC_PATH, ns.toString()))
                 .thenApply(list -> list.stream()
                         .map(encoded -> TopicName.get("topic", ns, Codec.decode(encoded)).toString())
+                        .collect(Collectors.toList()));
+    }
+
+    /**
+     * List scalable topics in a namespace whose {@code properties} map contains the given
+     * key/value pair. On stores with native secondary index support (Oxia) this is served
+     * by the index registered at create/update time; otherwise it falls back to a children
+     * scan + per-record property check.
+     *
+     * @param ns            the namespace to scope the query to
+     * @param propertyKey   property name to filter on
+     * @param propertyValue exact property value to match
+     * @return fully qualified scalable topic names matching the property
+     */
+    public CompletableFuture<List<String>> findScalableTopicsByPropertyAsync(
+            NamespaceName ns, String propertyKey, String propertyValue) {
+        String scanPathPrefix = joinPath(SCALABLE_TOPIC_PATH, ns.toString());
+        ObjectMapper mapper = ObjectMapperFactory.getMapper().getObjectMapper();
+        return getStore().findByIndex(scanPathPrefix, propertyKey, propertyValue, result -> {
+                    // Fallback path (no native index): re-check the property on the loaded record.
+                    try {
+                        ScalableTopicMetadata md =
+                                mapper.readValue(result.getValue(), ScalableTopicMetadata.class);
+                        return md.getProperties() != null
+                                && propertyValue.equals(md.getProperties().get(propertyKey));
+                    } catch (IOException e) {
+                        return false;
+                    }
+                })
+                .thenApply(results -> results.stream()
+                        .map(r -> {
+                            String path = r.getStat().getPath();
+                            String encoded = path.substring(path.lastIndexOf('/') + 1);
+                            return TopicName.get("topic", ns, Codec.decode(encoded)).toString();
+                        })
                         .collect(Collectors.toList()));
     }
 
