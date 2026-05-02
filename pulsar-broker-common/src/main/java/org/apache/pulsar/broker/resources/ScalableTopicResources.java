@@ -75,13 +75,26 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
     private final MetadataCache<ConsumerRegistration> consumerRegistrationCache;
 
     /**
-     * Per-namespace listeners for scalable topic create / modify / delete events.
-     * Keyed by listener so each subscriber can deregister cleanly on close. The map
-     * is consulted from the single store-level listener registered at construction
-     * time, eliminating the listener leak that would otherwise occur every time a
-     * watcher session ends (the metadata store API has no
-     * {@code unregisterListener}). Mirrors the {@link TopicResources}
-     * pattern for {@code TopicListener}.
+     * Per-path listeners for scalable-topic metadata events. Each listener watches a
+     * single exact path (typically a topic record); the resources-level fan-out
+     * dispatches notifications whose path equals the listener's registered path.
+     * Used by {@link DagWatchSession}-style subscribers that want events for one
+     * specific topic.
+     *
+     * <p>Hosted here — rather than letting each subscriber call
+     * {@code store.registerListener} directly — because {@code MetadataStore} has no
+     * {@code unregisterListener}: per-subscriber direct registration would leak a
+     * listener for the broker's lifetime every time a session ends, and every
+     * metadata notification would fan out to all stale listeners. Mirrors
+     * {@link TopicResources} for {@code TopicListener}.
+     */
+    private final Map<MetadataPathListener, String> pathListeners = new ConcurrentHashMap<>();
+
+    /**
+     * Per-namespace listeners for scalable-topic create / modify / delete events.
+     * Used by namespace-wide watchers (e.g. multi-topic consumer wrappers); the
+     * fan-out matches direct children of the listener's namespace base path. Same
+     * leak-avoidance rationale as {@link #pathListeners}.
      */
     private final Map<NamespaceListener, NamespaceName> namespaceListeners =
             new ConcurrentHashMap<>();
@@ -90,14 +103,45 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
         super(store, ScalableTopicMetadata.class, operationTimeoutSec);
         this.subscriptionCache = store.getMetadataCache(SubscriptionMetadata.class);
         this.consumerRegistrationCache = store.getMetadataCache(ConsumerRegistration.class);
-        // Single shared metadata-store listener fans out to every registered watcher.
-        // Per-watcher registration happens via registerNamespaceListener; close() calls
-        // deregisterNamespaceListener so closed watchers are not on the dispatch list.
+        // Single shared metadata-store listener fans out to both per-path and
+        // per-namespace subscribers. Per-subscriber lifecycle goes through the
+        // register / deregister methods below.
         if (store instanceof MetadataStoreExtended ext) {
             ext.registerListener(this::handleNotification);
         } else {
             store.registerListener(this::handleNotification);
         }
+    }
+
+    // --- Per-path metadata listeners ---
+
+    /**
+     * Listener for metadata events on a specific scalable-topic-related path. The
+     * fan-out in {@link ScalableTopicResources} compares each notification's path
+     * against {@link #getMetadataPath()} and dispatches on exact match.
+     */
+    public interface MetadataPathListener {
+        /** Exact path this listener is interested in (no wildcard / prefix). */
+        String getMetadataPath();
+
+        /** Called for every metadata event on the listener's path. */
+        void onNotification(Notification notification);
+    }
+
+    /**
+     * Register a per-path metadata listener. Idempotent — re-registering the same
+     * listener just refreshes its path mapping (e.g. if the listener moved its path).
+     */
+    public void registerPathListener(MetadataPathListener listener) {
+        pathListeners.put(listener, listener.getMetadataPath());
+    }
+
+    /**
+     * Deregister a previously-registered listener. Safe to call multiple times or for
+     * listeners that were never registered.
+     */
+    public void deregisterPathListener(MetadataPathListener listener) {
+        pathListeners.remove(listener);
     }
 
     // --- Namespace-level scalable-topics listeners ---
@@ -135,35 +179,53 @@ public class ScalableTopicResources extends BaseResources<ScalableTopicMetadata>
     }
 
     /**
-     * Single fan-out path: for each registered listener, emit the notification iff
-     * its path is a direct child of the listener's namespace base path. Filters out
-     * subtree events (subscriptions, controller lock) up front.
+     * Single fan-out path. For each registered subscriber:
+     * <ul>
+     *   <li>Path listener: dispatch when the notification's path equals the listener's
+     *       registered path.</li>
+     *   <li>Namespace listener: dispatch when the notification's path is a direct
+     *       child of {@code /topics/<tenant>/<ns>} (skips subtree events like
+     *       subscriptions / controller lock).</li>
+     * </ul>
      */
     void handleNotification(Notification notification) {
-        if (namespaceListeners.isEmpty()) {
-            return;
-        }
         String path = notification.getPath();
-        if (!path.startsWith(SCALABLE_TOPIC_PATH + "/")) {
-            return;
+
+        // Path listeners — exact match.
+        if (!pathListeners.isEmpty()) {
+            for (Map.Entry<MetadataPathListener, String> entry : pathListeners.entrySet()) {
+                if (entry.getValue().equals(path)) {
+                    try {
+                        entry.getKey().onNotification(notification);
+                    } catch (Exception e) {
+                        log.warn().attr("listener", entry.getKey())
+                                .attr("path", path)
+                                .exceptionMessage(e)
+                                .log("Failed to dispatch scalable-topic path notification");
+                    }
+                }
+            }
         }
-        for (Map.Entry<NamespaceListener, NamespaceName> entry : namespaceListeners.entrySet()) {
-            String basePath = namespacePath(entry.getValue());
-            if (!path.startsWith(basePath + "/")) {
-                continue;
-            }
-            // Direct child only — strip the prefix and check there's no further '/'.
-            String rest = path.substring(basePath.length() + 1);
-            if (rest.indexOf('/') >= 0) {
-                continue;
-            }
-            try {
-                entry.getKey().onNotification(notification);
-            } catch (Exception e) {
-                log.warn().attr("listener", entry.getKey())
-                        .attr("path", path)
-                        .exceptionMessage(e)
-                        .log("Failed to dispatch scalable-topic notification");
+
+        // Namespace listeners — direct child of /topics/<ns>.
+        if (!namespaceListeners.isEmpty() && path.startsWith(SCALABLE_TOPIC_PATH + "/")) {
+            for (Map.Entry<NamespaceListener, NamespaceName> entry : namespaceListeners.entrySet()) {
+                String basePath = namespacePath(entry.getValue());
+                if (!path.startsWith(basePath + "/")) {
+                    continue;
+                }
+                String rest = path.substring(basePath.length() + 1);
+                if (rest.indexOf('/') >= 0) {
+                    continue;
+                }
+                try {
+                    entry.getKey().onNotification(notification);
+                } catch (Exception e) {
+                    log.warn().attr("listener", entry.getKey())
+                            .attr("path", path)
+                            .exceptionMessage(e)
+                            .log("Failed to dispatch scalable-topic namespace notification");
+                }
             }
         }
     }
