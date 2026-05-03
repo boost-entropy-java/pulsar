@@ -59,7 +59,10 @@ public class V5DeadLetterPolicyTest extends V5ClientBaseTest {
                 .subscriptionName("dlq-sub")
                 .negativeAckRedeliveryBackoff(BackoffPolicy.exponential(
                         Duration.ofMillis(200), Duration.ofMillis(200)))
-                .deadLetterPolicy(new DeadLetterPolicy(2, null, dlqTopic, null))
+                .deadLetterPolicy(DeadLetterPolicy.builder()
+                        .maxRedeliverCount(2)
+                        .deadLetterTopic(dlqTopic)
+                        .build())
                 .subscribe();
 
         @Cleanup
@@ -104,7 +107,7 @@ public class V5DeadLetterPolicyTest extends V5ClientBaseTest {
                 .subscriptionName("default-dlq-sub")
                 .negativeAckRedeliveryBackoff(BackoffPolicy.exponential(
                         Duration.ofMillis(200), Duration.ofMillis(200)))
-                .deadLetterPolicy(DeadLetterPolicy.of(1))
+                .deadLetterPolicy(DeadLetterPolicy.builder().maxRedeliverCount(1).build())
                 .subscribe();
 
         @Cleanup
@@ -150,7 +153,10 @@ public class V5DeadLetterPolicyTest extends V5ClientBaseTest {
                 .subscriptionName("dlq-meta-sub")
                 .negativeAckRedeliveryBackoff(BackoffPolicy.exponential(
                         Duration.ofMillis(200), Duration.ofMillis(200)))
-                .deadLetterPolicy(new DeadLetterPolicy(1, null, dlqTopic, null))
+                .deadLetterPolicy(DeadLetterPolicy.builder()
+                        .maxRedeliverCount(1)
+                        .deadLetterTopic(dlqTopic)
+                        .build())
                 .subscribe();
         @Cleanup
         QueueConsumer<byte[]> dlqConsumer = v5Client.newQueueConsumer(Schema.bytes())
@@ -212,7 +218,10 @@ public class V5DeadLetterPolicyTest extends V5ClientBaseTest {
                 .subscriptionName("dlq-multi-sub")
                 .negativeAckRedeliveryBackoff(BackoffPolicy.exponential(
                         Duration.ofMillis(200), Duration.ofMillis(200)))
-                .deadLetterPolicy(new DeadLetterPolicy(1, null, dlqTopic, null))
+                .deadLetterPolicy(DeadLetterPolicy.builder()
+                        .maxRedeliverCount(1)
+                        .deadLetterTopic(dlqTopic)
+                        .build())
                 .subscribe();
         @Cleanup
         QueueConsumer<byte[]> dlqConsumer = v5Client.newQueueConsumer(Schema.bytes())
