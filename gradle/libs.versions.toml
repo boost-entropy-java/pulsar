@@ -19,7 +19,7 @@
 [versions]
 # Docker
 docker-jdk = "21"
-pulsar-client-python = "3.10.0"
+pulsar-client-python = "3.12.0"
 # Code quality
 checkstyle = "13.3.0"
 # Major frameworks
@@ -175,7 +175,7 @@ thrift = "0.23.0"
 datasketches-memory = "4.1.0"
 datasketches-java = "7.0.1"
 # Shading
-shadow = "9.4.1"
+shadow = "9.4.2"
 
 [libraries]
 # SLF4J
