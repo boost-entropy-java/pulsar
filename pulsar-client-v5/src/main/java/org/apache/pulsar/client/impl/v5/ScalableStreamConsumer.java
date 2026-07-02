@@ -28,8 +28,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedTransferQueue;
-import java.util.concurrent.TimeUnit;
 import org.apache.pulsar.client.api.KeySharedPolicy;
 import org.apache.pulsar.client.api.Range;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -92,10 +90,10 @@ final class ScalableStreamConsumer<T>
     private final ConcurrentHashMap<Long, org.apache.pulsar.client.api.MessageId> latestDelivered =
             new ConcurrentHashMap<>();
 
-    private final LinkedTransferQueue<MessageV5<T>> messageQueue = new LinkedTransferQueue<>();
+    private final V5ReceiveQueue<T> receiveQueue;
     /**
      * Where each per-segment receive loop deposits a freshly-arrived message. Defaults
-     * to enqueueing on {@link #messageQueue} for the user's {@link #receive()} to pull;
+     * to enqueueing on {@link #receiveQueue} for the user's {@link #receive()} to pull;
      * the multi-topic wrapper overrides this to forward into its shared multiplexed
      * queue, applying its own multi-topic position-vector capture in the process.
      */
@@ -117,7 +115,9 @@ final class ScalableStreamConsumer<T>
         this.session = session;
         this.topicName = topicName;
         this.subscriptionName = consumerConf.getSubscriptionName();
-        this.messageSink = messageSink != null ? messageSink : messageQueue::add;
+        this.receiveQueue = new V5ReceiveQueue<>(
+                client.v4Client().externalExecutorProvider().getExecutor(), client.v4Client().timer());
+        this.messageSink = messageSink != null ? messageSink : receiveQueue::offer;
         this.log = LOG.with().attr("topic", topicName).attr("subscription", subscriptionName).build();
         this.asyncView = new AsyncStreamConsumerV5<>(this);
     }
@@ -199,48 +199,17 @@ final class ScalableStreamConsumer<T>
 
     @Override
     public Message<T> receive() throws PulsarClientException {
-        try {
-            return messageQueue.take();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new PulsarClientException("Receive interrupted", e);
-        }
+        return receiveQueue.take();
     }
 
     @Override
     public Message<T> receive(Duration timeout) throws PulsarClientException {
-        try {
-            return messageQueue.poll(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new PulsarClientException("Receive interrupted", e);
-        }
+        return receiveQueue.poll(timeout);
     }
 
     @Override
     public Messages<T> receiveMulti(int maxNumMessages, Duration timeout) throws PulsarClientException {
-        List<Message<T>> batch = new ArrayList<>();
-        long deadlineNanos = System.nanoTime() + timeout.toNanos();
-
-        while (batch.size() < maxNumMessages) {
-            long remainingNanos = deadlineNanos - System.nanoTime();
-            if (remainingNanos <= 0) {
-                break;
-            }
-            try {
-                MessageV5<T> msg = messageQueue.poll(remainingNanos, TimeUnit.NANOSECONDS);
-                if (msg == null) {
-                    break;
-                }
-                batch.add(msg);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new PulsarClientException("Receive interrupted", e);
-            }
-            // Drain any immediately available messages
-            messageQueue.drainTo(batch, maxNumMessages - batch.size());
-        }
-        return new MessagesV5<>(batch);
+        return new MessagesV5<>(receiveQueue.receiveMulti(maxNumMessages, timeout));
     }
 
     @Override
@@ -292,27 +261,20 @@ final class ScalableStreamConsumer<T>
     // --- Async internals ---
 
     CompletableFuture<Message<T>> receiveAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return receive();
-            } catch (PulsarClientException e) {
-                throw new CompletionException(e);
-            }
-        });
+        return receiveQueue.receiveAsync();
     }
 
     CompletableFuture<Message<T>> receiveAsync(Duration timeout) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return receive(timeout);
-            } catch (PulsarClientException e) {
-                throw new CompletionException(e);
-            }
-        });
+        return receiveQueue.receiveAsync(timeout);
+    }
+
+    CompletableFuture<List<Message<T>>> receiveMultiAsync(int maxNumMessages, Duration timeout) {
+        return receiveQueue.receiveMultiAsync(maxNumMessages, timeout);
     }
 
     CompletableFuture<Void> closeAsync() {
         closed = true;
+        receiveQueue.close();
         session.close();
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();

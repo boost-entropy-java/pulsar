@@ -31,7 +31,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.pulsar.client.api.v5.Message;
@@ -85,7 +84,7 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
 
     private final ScalableTopicsWatcher watcher;
     private final ConcurrentHashMap<String, PerTopicState<T>> perTopic = new ConcurrentHashMap<>();
-    private final LinkedTransferQueue<MessageV5<T>> mux = new LinkedTransferQueue<>();
+    private final V5ReceiveQueue<T> mux;
 
     private volatile boolean closed = false;
     private final AsyncQueueConsumerV5<T> asyncView;
@@ -103,6 +102,8 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
         this.propertyFilters = propertyFilters;
         this.subscriptionName = consumerConf.getSubscriptionName();
         this.watcher = watcher;
+        this.mux = new V5ReceiveQueue<>(
+                client.v4Client().externalExecutorProvider().getExecutor(), client.v4Client().timer());
         this.log = LOG.with()
                 .attr("namespace", namespace)
                 .attr("subscription", subscriptionName)
@@ -170,7 +171,7 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
         // thread; per-segment v4 receive loops fire this sink directly.
         java.util.function.Consumer<MessageV5<T>> sink = msg -> {
             if (!closed) {
-                mux.add(msg.withTopicOverride(topicName));
+                mux.offer(msg.withTopicOverride(topicName));
             }
         };
         return dagWatch.start()
@@ -299,22 +300,12 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
 
     @Override
     public Message<T> receive() throws PulsarClientException {
-        try {
-            return mux.take();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new PulsarClientException("Receive interrupted", e);
-        }
+        return mux.take();
     }
 
     @Override
     public Message<T> receive(Duration timeout) throws PulsarClientException {
-        try {
-            return mux.poll(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new PulsarClientException("Receive interrupted", e);
-        }
+        return mux.poll(timeout);
     }
 
     @Override
@@ -372,13 +363,7 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
 
     @Override
     public CompletableFuture<Message<T>> receiveAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return receive();
-            } catch (PulsarClientException e) {
-                throw new CompletionException(e);
-            }
-        });
+        return mux.receiveAsync();
     }
 
     @Override
@@ -388,6 +373,7 @@ final class MultiTopicQueueConsumer<T> implements QueueConsumerImpl<T> {
         }
         closed = true;
         watcher.close();
+        mux.close();
         // Cancel pending retries for topics that never finished subscribing (they're not in
         // perTopic, so the closeTopic loop below wouldn't reach them).
         retryTimeouts.values().forEach(Timeout::cancel);
