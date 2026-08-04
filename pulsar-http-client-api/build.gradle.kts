@@ -17,12 +17,15 @@
  * under the License.
  */
 
+// PIP-478: focused, dependency-light API module hosting the framework-managed HTTP client SPI
+// (org.apache.pulsar.http). Published so that server-side modules and the v5 client may depend on it
+// in later stages — the published-module dependency guard only allows published-on-published deps.
 plugins {
     id("pulsar.public-java-library-conventions")
 }
 
 dependencies {
-    implementation(libs.slog)
-    api(project(":pulsar-io:pulsar-io-core"))
-    implementation(libs.cron.utils)
+    // PulsarHttpClientConfig selects TLS material by TlsPurpose, which is part of this SPI's surface;
+    // exposed as `api` so consumers of PulsarHttpClientConfig see the TLS factory SPI.
+    api(project(":pulsar-tls-factory-api"))
 }

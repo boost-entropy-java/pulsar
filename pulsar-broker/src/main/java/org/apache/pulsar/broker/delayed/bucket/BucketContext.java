@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.pulsar.broker.delayed.bucket;
 
-plugins {
-    id("pulsar.public-java-library-conventions")
-}
+import org.apache.bookkeeper.mledger.ManagedCursor;
+import org.apache.pulsar.common.util.FutureUtil;
 
-dependencies {
-    implementation(libs.slog)
-    api(project(":pulsar-io:pulsar-io-core"))
-    implementation(libs.cron.utils)
+record BucketContext(
+        String dispatcherName,
+        ManagedCursor cursor,
+        FutureUtil.Sequencer<Void> sequencer,
+        BucketSnapshotStorage bucketSnapshotStorage) {
 }

@@ -17,12 +17,18 @@
  * under the License.
  */
 
+// PIP-478: focused, dependency-light API module hosting the purpose-driven TLS factory SPI
+// (org.apache.pulsar.tls). Published so that server-side modules (pulsar-common, broker-common,
+// proxy, ...) and the v5 client may depend on it in later stages — the published-module dependency
+// guard only allows published-on-published deps.
 plugins {
     id("pulsar.public-java-library-conventions")
 }
 
 dependencies {
-    implementation(libs.slog)
-    api(project(":pulsar-io:pulsar-io-core"))
-    implementation(libs.cron.utils)
+    // TlsFactoryInitContext exposes OpenTelemetry on the SPI surface, so it is an api dependency:
+    // an external factory implementation depending only on this module must resolve OpenTelemetry.
+    // The Netty/Jetty well-known TLS classes appear only as documented Class<T> values referenced in
+    // plain-text javadoc, so no netty/jetty dependency is needed.
+    api(libs.opentelemetry.api)
 }
